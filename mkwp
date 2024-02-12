@@ -366,7 +366,7 @@ EOT
        done
 
        # Install mu-plugins
-       ci wp-content/mu-plugins
+       cd wp-content/mu-plugins
        for url in "${mu_plugins[@]}"; do
               curl -O $url
        done
