@@ -157,7 +157,7 @@ handle_arguments() {
 
        while [[ $# > 0 ]]; do
               case $1 in
-                     -h | --help) help; shift; die ;;
+                     -h | --help) help; die ;;
                      -t | --title=*) extract_argument title $@; shift $? ;;
                      -d | --directory=*) extract_argument directory $@; shift $? ;;
                      -m | --email=*) extract_argument email $@; shift $? ;;
@@ -246,7 +246,53 @@ make_uniqe_array() {
 
 }
 
+# Usage: rename_version_suffixed_directories <dir>
+# When downloading a theme or plugin zip file from GitHub (and maybe other
+# places), the name of the file is the name of the theme or plugin followed by
+# a hyphen and version number. When the zip file is unpacked, the directory
+# gets the same suffix. This function finds all subdirectories in <dir> and
+# removes this suffix.
+rename_version_suffixed_directories() {
+       find . -type d -regextype posix-extended -regex '.+-[[:digit:].]+$' -print0 | while IFS= read -rd $'\0' old; do
+              mv "$old" "$(expr "$old" : '^\(.*\)-[[:digit:].]*$')"
+       done
+}
+
 # =============================================================================
+
+# For debugging only
+# Print a trace of simple commands, for commands, case commands, select
+# commands, and arithmetic for commands and their arguments or associated word
+# lists after they are expanded and before they are executed. The value of the
+# PS4 variable is expanded and the resultant value is printed before the
+# command and its expanded arguments.
+# set -x
+
+# If set, the return value of a pipeline is the value of the last (rightmost)
+# command to exit with a non-zero status, or zero if all commands in the
+# pipeline exit successfully. This option is disabled by default. 
+set -o pipefail
+ 
+# Treat unset variables and parameters other than the special parameters ‘@’ or
+# ‘*’, or array variables subscripted with ‘@’ or ‘*’, as an error when
+# performing parameter expansion. An error message will be written to the
+# standard error, and a non-interactive shell will exit. 
+set -u
+
+# Set options variables used by the script. Should another variable sneak into
+# the script, it is an error and `set -u` aborts the execution.
+name=
+title=
+directory=
+email=
+user=
+password=
+language=
+themes=
+plugins=
+mu_plugins=
+php=
+config=
 
 # Parse the argument list from the command line
 handle_arguments "$@"
@@ -261,7 +307,7 @@ email=${email:=$(whoami)@$(hostname)}
 user=${user:=${email%@*}}
 password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
 language=${language:=en_US}
-themes=${themes:=https://github.com/Kntnt/kntnt-canvas,https://github.com/Kntnt/kntnt-canvas-child}
+themes=${themes:=twentytwentyfour}
 php=${php:=7.4}
 
 # Some other values
@@ -282,34 +328,23 @@ make_uniqe_array themes
 make_uniqe_array plugins
 make_uniqe_array mu_plugins
 
-# Create a list of regular plugins to install
-IFS=',' read -ra plugins <<< "$plugins $recommended_plugins"
-
-# Create a list of must use plugins to install
-declare -A m
-IFS=',' read -ra plugins <<< "$mu_plugins $recommended_mu_plugins"
-for mu_plugin in "${mu_plugins[@]}"; do
-    m["$mu_plugin"]=1
-done
-mu_plugins=("${!m[@]}")
-
 # Chek that DDEV is working
 ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
 
 # Create subshell to allow the script to change directory without having to worry about restoring the user's current working directory
 (
 
-       # Move into the WordPress root directory (which was created as side effect when validating the directory.
+       # Enter the WordPress root directory (which was created as a side effect when the directory was validated).
        cd $wp
 
-       # Create local php.ini file
+       # Create local php.ini with infinite timeout. Don't use on production!
        mkdir -p ".ddev/php"
-       cat <<'EOT' > ".ddev/php/my-php.ini"
+       cat <<- 'EOT' > .ddev/php/my-php.ini
        [PHP]
-       max_input_time = 86400
-       max_execution_time = 86400
-       default_socket_timeout = 86400
-       error_reporting = E_ALL & ~E_DEPRECATED
+       ; Don't do this in production :-p
+       max_input_time = 0          ; infinite time
+       max_execution_time = 0      ; infinite time
+       default_socket_timeout = -1 ; infinite time
 EOT
 
        # Configure and start the Docker container
@@ -328,7 +363,7 @@ EOT
        echo -e "\nDone."
 
        # Create wp-config.php
-       ddev wp config create --dbname=db --dbuser=db --dbpass=db --dbhost="ddev-$name-db" --dbprefix=wp_ --dbcharset=utf8mb4 --dbcollate=utf8mb4_unicode_ci --locale="$language" --extra-php <<EOT
+       ddev wp config create --dbname=db --dbuser=db --dbpass=db --dbhost="ddev-$name-db" --dbprefix=wp_ --dbcharset=utf8mb4 --dbcollate=utf8mb4_unicode_ci --locale="$language" --extra-php <<- EOT
        //define( 'DISABLE_WP_CRON', true );
        define( 'WP_MEMORY_LIMIT', '64M' );
        define( 'WP_MAX_MEMORY_LIMIT', '256M' );
@@ -357,9 +392,6 @@ EOT
               ddev wp theme install "$theme"
        done
 
-       # Activate the last listed theme
-       wp theme activate ${themes[-1]}
-
        # Install plugins
        for plugin in "${plugins[@]}"; do
               ddev wp plugin install "$plugin"
@@ -370,6 +402,14 @@ EOT
        for url in "${mu_plugins[@]}"; do
               curl -O $url
        done
+
+       # Remove the version number from themes and plugins directories that
+       # have it at the end of their name.
+       rename_version_suffixed_directories wp-content/themes
+       rename_version_suffixed_directories wp-content/plugins
+
+       # Activate the last listed theme
+       ddev wp theme activate $(expr "${themes[-1]}" : '^.*/\(.*\)-[[:digit:].]*$')
 
        # Launch site
        ddev launch $name
