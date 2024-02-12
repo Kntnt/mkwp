@@ -5,117 +5,117 @@
 
 help() {
 
-       echo -e "NAME
-       mkwp - make wordpress
+	echo -e "NAME
+	mkwp - make wordpress
 
 \e[1mSYNOPSIS\e[0m
-       \e[1mmkwp\e[0m [OPTION]... [NAME]
+	\e[1mmkwp\e[0m [OPTION]... [NAME]
 
 \e[1mDESCRIPTION\e[0m
-       Makes a local WordPress site with the domain `name.ddev.site` where
-       `name` is the domain name provided as the argument [NAME].
+	Makes a local WordPress site with the domain `name.ddev.site` where
+	`name` is the domain name provided as the argument [NAME].
 
-       If a flag is not specified on the command line, the corresponding option
-       is in the first place set to a value read from the configuration file
-       specified with `-c` or `--config`, in the second place to a value read
-       from the configuration file `~/.mkwp`, and in the third place to
-       a default value.
+	If a flag is not specified on the command line, the corresponding option
+	is in the first place set to a value read from the configuration file
+	specified with `-c` or `--config`, in the second place to a value read
+	from the configuration file `~/.mkwp`, and in the third place to
+	a default value.
 
-       If the configuration file `~/.mkwp` is missing, an empty one will be
-       created.
+	If the configuration file `~/.mkwp` is missing, an empty one will be
+	created.
 
-       A configuration files should be formatted so that each line starting
-       with the name of a long format flag, excluding leading double dashes
-       (e.g. `email` instead of `--email`), followed by an equal sign, where
-       the corresponding flag has not been specified on the command line,
-       the flag is specified with the option set to the value following
-       the equal sign. White space may be used around the equal sign.
-       Examples:
+	A configuration files should be formatted so that each line starting
+	with the name of a long format flag, excluding leading double dashes
+	(e.g. `email` instead of `--email`), followed by an equal sign, where
+	the corresponding flag has not been specified on the command line,
+	the flag is specified with the option set to the value following
+	the equal sign. White space may be used around the equal sign.
+	Examples:
 
-              title = WordPress Tets Site
-              php=8.3
+		title = WordPress Tets Site
+		php=8.3
 
 \e[1mOPTIONS\e[0m
-       \e[1m-t <title>\e[0m
-       \e[1m--title=<title>\e[0m
-              The title of the WordPress site. If omitted, [NAME] will be used.
+	\e[1m-t <title>\e[0m
+	\e[1m--title=<title>\e[0m
+		The title of the WordPress site. If omitted, [NAME] will be used.
 
-       \e[1m-d <path>\e[0m
-       \e[1m--directory=<path>\e[0m
-              The home directory of the website. If omitted, current directory
-              will be used as home directory.
+	\e[1m-d <path>\e[0m
+	\e[1m--directory=<path>\e[0m
+		The home directory of the website. If omitted, current directory
+		will be used as home directory.
 
-       \e[1m-m <email>\e[0m
-       \e[1m--email=<email>\e[0m
-              The email address of the first user created in WordPress. If
-              If omitted, the current username is used as local-part and
-              the hostname as domain.
+	\e[1m-m <email>\e[0m
+	\e[1m--email=<email>\e[0m
+		The email address of the first user created in WordPress. If
+		If omitted, the current username is used as local-part and
+		the hostname as domain.
 
-       \e[1m-u <username>\e[0m
-       \e[1m--user=<username>\e[0m
-              The username of the first user created in WordPress. If omitted,
-              the local-part of the email address will be used.
+	\e[1m-u <username>\e[0m
+	\e[1m--user=<username>\e[0m
+		The username of the first user created in WordPress. If omitted,
+		the local-part of the email address will be used.
 
-       \e[1m-p <password>\e[0m
-       \e[1m--password=<password>\e[0m
-              The password of the first user created in WordPress. Must at
-              least be 12 characters long. If omitted, a 16 character random
-              password is generated.
+	\e[1m-p <password>\e[0m
+	\e[1m--password=<password>\e[0m
+		The password of the first user created in WordPress. Must at
+		least be 12 characters long. If omitted, a 16 character random
+		password is generated.
 
-       \e[1m-l <locale>\e[0m
-       \e[1m--language=<locale>\e[0m
-              The language of the WordPress site. If omitted, en_US will be
-              used.
+	\e[1m-l <locale>\e[0m
+	\e[1m--language=<locale>\e[0m
+		The language of the WordPress site. If omitted, en_US will be
+		used.
 
-       \e[1m-T <themes>\e[0m
-       \e[1m--themes=<themes>\e[0m
-              Comma spearared list of themes to install. For each theme,
-              provide the theme's slug (e.g. twentytwentyfour) or a URL from
-              where it can be downloaded as zip-file (e.g. https://downloads.
-              wordpress.org/theme/twentytwentyfour.1.0.zip). The last listed
-              theme is activated. If omitted, Kntnt Canvas and its child theme
-              will be installed (see https://github.com/Kntnt/kntnt-canvas).
+	\e[1m-T <themes>\e[0m
+	\e[1m--themes=<themes>\e[0m
+		Comma spearared list of themes to install. For each theme,
+		provide the theme's slug (e.g. twentytwentyfour) or a URL from
+		where it can be downloaded as zip-file (e.g. https://downloads.
+		wordpress.org/theme/twentytwentyfour.1.0.zip). The last listed
+		theme is activated. If omitted, Kntnt Canvas and its child theme
+		will be installed (see https://github.com/Kntnt/kntnt-canvas).
 
-       \e[1m-P <plugins>\e[0m
-       \e[1m--plugins=<plugins>\e[0m
-              Comma spearared list of plugins to install. For each plugin,
-              provide the plugin's slug (e.g. create-block-theme) or a URL from
-              where it can be downloaded as zip-file (e.g. https://downloads.
-              wordpress.org/plugin/create-block-theme.1.13.8.zip). If omitted,
-              no plugins will be installed.
+	\e[1m-P <plugins>\e[0m
+	\e[1m--plugins=<plugins>\e[0m
+		Comma spearared list of plugins to install. For each plugin,
+		provide the plugin's slug (e.g. create-block-theme) or a URL from
+		where it can be downloaded as zip-file (e.g. https://downloads.
+		wordpress.org/plugin/create-block-theme.1.13.8.zip). If omitted,
+		no plugins will be installed.
 
-       \e[1m-M <plugins>\e[0m
-       \e[1m--mu-plugins=<plugins>\e[0m
-              Comma spearared list of mu-plugins to install. For each plugin,
-              provide the plugin's URL from where it can be downloaded as
-              php-file (e.g. https://raw.githubusercontent.com/Kntnt/kntnt-
-              adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php).
-              If omitted, no mu-plugins will be installed.
+	\e[1m-M <plugins>\e[0m
+	\e[1m--mu-plugins=<plugins>\e[0m
+		Comma spearared list of mu-plugins to install. For each plugin,
+		provide the plugin's URL from where it can be downloaded as
+		php-file (e.g. https://raw.githubusercontent.com/Kntnt/kntnt-
+		adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php).
+		If omitted, no mu-plugins will be installed.
 
-       \e[1m-V <version>\e[0m
-       \e[1m--php=<version>\e[0m
-              Version of PHP to be used. If omitted, PHP 7.4 will be used.
+	\e[1m-V <version>\e[0m
+	\e[1m--php=<version>\e[0m
+		Version of PHP to be used. If omitted, PHP 7.4 will be used.
 
-       \e[1m-c <file>\e[0m
-       \e[1m--config=<file>\e[0m
-              Reads configuration from a file with the path <file>.
-              See description above for deatils.
+	\e[1m-c <file>\e[0m
+	\e[1m--config=<file>\e[0m
+		Reads configuration from a file with the path <file>.
+		See description above for deatils.
 
-       \e[1m-h\e[0m
-       \e[1m--help\e[0m
-              Display this help and exit.
+	\e[1m-h\e[0m
+	\e[1m--help\e[0m
+		Display this help and exit.
 
 \e[1mDEPENDENCY\e[0m
-       This command requires that a Docker provider is installed and running
-       on your system and that DDEV is properly installed and in your path."
+	This command requires that a Docker provider is installed and running
+	on your system and that DDEV is properly installed and in your path."
 
 }
 
 # Usage: die <message> <satus>
 # Echos the <message> and exit with the status code <status>
 die() {
-       echo "${1:-}" 1>&2
-       exit "${2:-0}"
+	echo "${1:-}" 1>&2
+	exit "${2:-0}"
 }
 
 # Usage: extract_argument <variable> <args>
@@ -130,21 +130,21 @@ die() {
 # the subprocess but not the calling process.
 extract_argument() {
 
-       if [[ "$2" =~ ^--[^=]+=(.+)$ ]]; then # Long flag format, e.g. --php=8.3
+	if [[ "$2" =~ ^--[^=]+=(.+)$ ]]; then # Long flag format, e.g. --php=8.3
 
-              declare -g "$1"="${BASH_REMATCH[1]}"
-              return 1
+		declare -g "$1"="${BASH_REMATCH[1]}"
+		return 1
 
-       elif [[ "$2" =~ ^-[^-]$ ]]; then # Short flag format, e.g. -P 8.3
+	elif [[ "$2" =~ ^-[^-]$ ]]; then # Short flag format, e.g. -P 8.3
 
-              declare -g "$1"="$3"
-              return 2
+		declare -g "$1"="$3"
+		return 2
 
-       else
+	else
 
-              die "Error: Missing option for $1" 12
+		die "Error: Missing option for $1" 12
 
-       fi
+	fi
 
 }
 
@@ -153,72 +153,72 @@ extract_argument() {
 # line, and creating corresponding variables containing options.
 handle_arguments() {
 
-       [[ $# = 0 ]] && help && die
+	[[ $# = 0 ]] && help && die
 
-       while [[ $# > 0 ]]; do
-              case $1 in
-                     -h | --help) help; die ;;
-                     -t | --title=*) extract_argument title $@; shift $? ;;
-                     -d | --directory=*) extract_argument directory $@; shift $? ;;
-                     -m | --email=*) extract_argument email $@; shift $? ;;
-                     -u | --user=*) extract_argument user $@; shift $? ;;
-                     -p | --password=*) extract_argument password $@; shift $? ;;
-                     -l | --language=*) extract_argument language $@; shift $? ;;
-                     -T | --themes=*) extract_argument themes $@; shift $? ;;
-                     -P | --plugins=*) extract_argument plugins $@; shift $? ;;
-                     -M | --mu-plugins=*) extract_argument mu_plugins $@; shift $? ;;
-                     -V | --php=*) extract_argument php $@; shift $? ;;
-                     -c | --config=*) extract_argument config $@; shift $? ;;
-                     *) [ -z "$name" ] && name="$1" && shift || die "Error: Invalid flag: $1" 2 ;;
-              esac
-       done
+	while [[ $# > 0 ]]; do
+		case $1 in
+			-h | --help) help; die ;;
+			-t | --title=*) extract_argument title $@; shift $? ;;
+			-d | --directory=*) extract_argument directory $@; shift $? ;;
+			-m | --email=*) extract_argument email $@; shift $? ;;
+			-u | --user=*) extract_argument user $@; shift $? ;;
+			-p | --password=*) extract_argument password $@; shift $? ;;
+			-l | --language=*) extract_argument language $@; shift $? ;;
+			-T | --themes=*) extract_argument themes $@; shift $? ;;
+			-P | --plugins=*) extract_argument plugins $@; shift $? ;;
+			-M | --mu-plugins=*) extract_argument mu_plugins $@; shift $? ;;
+			-V | --php=*) extract_argument php $@; shift $? ;;
+			-c | --config=*) extract_argument config $@; shift $? ;;
+			*) [ -z "$name" ] && name="$1" && shift || die "Error: Invalid flag: $1" 2 ;;
+		esac
+	done
 
-       [[ -z "$name" ]] && die "Error: Missing name of the project." 3
+	[[ -z "$name" ]] && die "Error: Missing name of the project." 3
 
 }
 
 # Usage: handle_config_files
 handle_config_files() {
 
-       # Create a list of files to read configuration from
-       local files=()
+	# Create a list of files to read configuration from
+	local files=()
 
-       # Add config file to the list of configuration files if it exists and is readable
-       if [[  $config ]]; then # Config file is supplied
-
-
-              # Use /dev/stdin if config file is -
-              [[ "$config" = "-" ]] && config="/dev/stdin"
-
-              # Validare config file
-              touch $config &> /dev/null && [[ -r $config ]] || die "Invalid path to config file" 10
-
-              # Add the config file to the list of files to read configuration from
-              files+=(/dev/stdin)
-
-       fi
-
-       # Add ~/.mkwp file to the list of configuration files if is readable. Create ~/.mkwp if it doesn't exist.
-       touch ~/.mkwp &> /dev/null && [[ -r ~/.mkwp ]] && files+=(~/.mkwp) || die "Couldn't create ~/.mkwp" 10
-
-       # Read config files
-       while IFS= read -r line || [ "$line" ]; do
+	# Add config file to the list of configuration files if it exists and is readable
+	if [[  $config ]]; then # Config file is supplied
 
 
-              # Validate the line structure
-              if [[ $line =~ ^(title|directory|email|user|password|language|php)\s*=\s*(.*) ]]; then
+		# Use /dev/stdin if config file is -
+		[[ "$config" = "-" ]] && config="/dev/stdin"
 
-                     # Extract keyword and value
-                     local key="${BASH_REMATCH[1]}"
-                     local value="${BASH_REMATCH[2]}"
+		# Validare config file
+		touch $config &> /dev/null && [[ -r $config ]] || die "Invalid path to config file" 10
 
-                     # If the variable named in $key has no value, $value is assigned to a variable named after the key.
-                     # This uses declare to dynamically create variables and printf %q to ensure the value is safely quoted
-                     [[ -z ${!key+x} ]] && declare -g "$key=$(printf "%q" "$value")"
+		# Add the config file to the list of files to read configuration from
+		files+=(/dev/stdin)
 
-              fi
+	fi
 
-       done < <(cat ${files[@]})
+	# Add ~/.mkwp file to the list of configuration files if is readable. Create ~/.mkwp if it doesn't exist.
+	touch ~/.mkwp &> /dev/null && [[ -r ~/.mkwp ]] && files+=(~/.mkwp) || die "Couldn't create ~/.mkwp" 10
+
+	# Read config files
+	while IFS= read -r line || [ "$line" ]; do
+
+
+		# Validate the line structure
+		if [[ $line =~ ^(title|directory|email|user|password|language|php)\s*=\s*(.*) ]]; then
+
+			# Extract keyword and value
+			local key="${BASH_REMATCH[1]}"
+			local value="${BASH_REMATCH[2]}"
+
+			# If the variable named in $key has no value, $value is assigned to a variable named after the key.
+			# This uses declare to dynamically create variables and printf %q to ensure the value is safely quoted
+			[[ -z ${!key+x} ]] && declare -g "$key=$(printf "%q" "$value")"
+
+		fi
+
+	done < <(cat ${files[@]})
 
 }
 
@@ -227,22 +227,22 @@ handle_config_files() {
 # call, <items> contains an array where all items occur exactly once.
 make_uniqe_array() {
 
-       # Uses name reference to refer to the original variable 
-       local -n arr=$1 
+	# Uses name reference to refer to the original variable 
+	local -n arr=$1 
 
-       # Splits the string into an array at each comma
-       IFS=',' read -r -a tempArray <<< "$arr" 
+	# Splits the string into an array at each comma
+	IFS=',' read -r -a tempArray <<< "$arr" 
 
-       # Declares an associative array to filter out duplicates
-       declare -A tempAssocArray 
+	# Declares an associative array to filter out duplicates
+	declare -A tempAssocArray 
 
-       # Adds each element from tempArray to tempAssocArray to eliminate duplicates
-       for element in "${tempArray[@]}"; do
-       tempAssocArray["$element"]=1
-       done
+	# Adds each element from tempArray to tempAssocArray to eliminate duplicates
+	for element in "${tempArray[@]}"; do
+	tempAssocArray["$element"]=1
+	done
 
-       # Turns the associative array back into an indexed array without duplicates
-       arr=("${!tempAssocArray[@]}")
+	# Turns the associative array back into an indexed array without duplicates
+	arr=("${!tempAssocArray[@]}")
 
 }
 
@@ -253,9 +253,9 @@ make_uniqe_array() {
 # gets the same suffix. This function finds all subdirectories in <dir> and
 # removes this suffix.
 rename_version_suffixed_directories() {
-       find . -type d -regextype posix-extended -regex '.+-[[:digit:].]+$' -print0 | while IFS= read -rd $'\0' old; do
-              mv "$old" "$(expr "$old" : '^\(.*\)-[[:digit:].]*$')"
-       done
+	find . -type d -regextype posix-extended -regex '.+-[[:digit:].]+$' -print0 | while IFS= read -rd $'\0' old; do
+		mv "$old" "$(expr "$old" : '^\(.*\)-[[:digit:].]*$')"
+	done
 }
 
 # =============================================================================
@@ -334,88 +334,88 @@ ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider 
 # Create subshell to allow the script to change directory without having to worry about restoring the user's current working directory
 (
 
-       # Enter the WordPress root directory (which was created as a side effect when the directory was validated).
-       cd $wp
+	# Enter the WordPress root directory (which was created as a side effect when the directory was validated).
+	cd $wp
 
-       # Create local php.ini with infinite timeout. Don't use on production!
-       mkdir -p ".ddev/php"
-       cat <<- 'EOT' > .ddev/php/my-php.ini
-       [PHP]
-       ; Don't do this in production :-p
-       max_input_time = 0          ; infinite time
-       max_execution_time = 0      ; infinite time
-       default_socket_timeout = -1 ; infinite time
+	# Create local php.ini with infinite timeout. Don't use on production!
+	mkdir -p ".ddev/php"
+	cat <<- 'EOT' > .ddev/php/my-php.ini
+	[PHP]
+	; Don't do this in production :-p
+	max_input_time = 0          ; infinite time
+	max_execution_time = 0      ; infinite time
+	default_socket_timeout = -1 ; infinite time
 EOT
 
-       # Configure and start the Docker container
-       ddev config --project-type=wordpress --disable-settings-management --php-version=$php --performance-mode=mutagen
-       ddev start
+	# Configure and start the Docker container
+	ddev config --project-type=wordpress --disable-settings-management --php-version=$php --performance-mode=mutagen
+	ddev start
 
-       # Download WordPress
-       ddev wp core download --locale=$language
+	# Download WordPress
+	ddev wp core download --locale=$language
 
-       # Wait for Mutagen to sync.
-       echo -n "Wait for Mutagen to sync "
-       while [ ! -f "$wp/index.php" ]; do
-              echo -n '.'
-              sleep 1;
-       done
-       echo -e "\nDone."
+	# Wait for Mutagen to sync.
+	echo -n "Wait for Mutagen to sync "
+	while [ ! -f "$wp/index.php" ]; do
+		echo -n '.'
+		sleep 1;
+	done
+	echo -e "\nDone."
 
-       # Create wp-config.php
-       ddev wp config create --dbname=db --dbuser=db --dbpass=db --dbhost="ddev-$name-db" --dbprefix=wp_ --dbcharset=utf8mb4 --dbcollate=utf8mb4_unicode_ci --locale="$language" --extra-php <<- EOT
-       //define( 'DISABLE_WP_CRON', true );
-       define( 'WP_MEMORY_LIMIT', '64M' );
-       define( 'WP_MAX_MEMORY_LIMIT', '256M' );
-       define( 'DISALLOW_FILE_EDIT', true );
-       define( 'WP_AUTO_UPDATE_CORE', 'minor' );
-       define( 'MEDIA_TRASH', true );
-       define( 'EMPTY_TRASH_DAYS', '90' );
-       define( 'WP_DEBUG', true );
-       define( 'WP_DEBUG_LOG', true );
-       define( 'WP_DEBUG_DISPLAY', false );
+	# Create wp-config.php
+	ddev wp config create --dbname=db --dbuser=db --dbpass=db --dbhost="ddev-$name-db" --dbprefix=wp_ --dbcharset=utf8mb4 --dbcollate=utf8mb4_unicode_ci --locale="$language" --extra-php <<- EOT
+	//define( 'DISABLE_WP_CRON', true );
+	define( 'WP_MEMORY_LIMIT', '64M' );
+	define( 'WP_MAX_MEMORY_LIMIT', '256M' );
+	define( 'DISALLOW_FILE_EDIT', true );
+	define( 'WP_AUTO_UPDATE_CORE', 'minor' );
+	define( 'MEDIA_TRASH', true );
+	define( 'EMPTY_TRASH_DAYS', '90' );
+	define( 'WP_DEBUG', true );
+	define( 'WP_DEBUG_LOG', true );
+	define( 'WP_DEBUG_DISPLAY', false );
 EOT
 
-       # Install WordPress
-       ddev wp core install --url="$url" --title="$title" --admin_user="$user" --admin_password="$password" --admin_email="$email" --skip-email
+	# Install WordPress
+	ddev wp core install --url="$url" --title="$title" --admin_user="$user" --admin_password="$password" --admin_email="$email" --skip-email
 
-       # Create home for "must use" plugins
-       mkdir -p wp-content/mu-plugins/DISABLED
+	# Create home for "must use" plugins
+	mkdir -p wp-content/mu-plugins/DISABLED
 
-       # Remove default themes and plugins
-       rm -rf themes/* plugins/*
-       cp index.php themes
-       cp index.php plugins
+	# Remove default themes and plugins
+	rm -rf wp-content/themes/* wp-content/plugins/*
+	cp index.php themes
+	cp index.php plugins
 
-       # Install themes
-       for theme in "${themes[@]}"; do
-              ddev wp theme install "$theme"
-       done
+	# Install themes
+	for theme in "${themes[@]}"; do
+		ddev wp theme install "$theme"
+	done
 
-       # Install plugins
-       for plugin in "${plugins[@]}"; do
-              ddev wp plugin install "$plugin"
-       done
+	# Install plugins
+	for plugin in "${plugins[@]}"; do
+		ddev wp plugin install "$plugin"
+	done
 
-       # Install mu-plugins
-       cd wp-content/mu-plugins
-       for url in "${mu_plugins[@]}"; do
-              curl -O $url
-       done
+	# Install mu-plugins
+	cd wp-content/mu-plugins
+	for url in "${mu_plugins[@]}"; do
+		curl -O $url
+	done
 
-       # Remove the version number from themes and plugins directories that
-       # have it at the end of their name.
-       rename_version_suffixed_directories wp-content/themes
-       rename_version_suffixed_directories wp-content/plugins
+	# Remove the version number from themes and plugins directories that
+	# have it at the end of their name.
+	rename_version_suffixed_directories wp-content/themes
+	rename_version_suffixed_directories wp-content/plugins
 
-       # Activate the last listed theme
-       ddev wp theme activate $(expr "${themes[-1]}" : '^.*/\(.*\)-[[:digit:].]*$')
+	# Activate the last listed theme
+	ddev wp theme activate $(expr "${themes[-1]}" : '^.*/\(.*\)-[[:digit:].]*$')
 
-       # Launch site
-       ddev launch $name
+	# Launch site
+	ddev launch $name
 
-       # Inform user.
-       echo -e "\e[1;30;103m\n\nYou should now see your new WordPress site in your browser.\n\nUsername: $user\npassword: $password\n\e[0m"
+	# Inform user.
+	echo -e "\e[1;30;103m\n\nYou should now see your new WordPress site in your browser.\n\nUsername: $user\npassword: $password\n\e[0m"
 
 # End of subshell.
 )
