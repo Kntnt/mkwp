@@ -71,10 +71,9 @@ help() {
 	\e[1m--themes=<themes>\e[0m
 		Comma spearared list of themes to install. For each theme,
 		provide the theme's slug (e.g. twentytwentyfour) or a URL from
-		where it can be downloaded as zip-file (e.g. https://downloads.
-		wordpress.org/theme/twentytwentyfour.1.0.zip). The last listed
-		theme is activated. If omitted, Kntnt Canvas and its child theme
-		will be installed (see https://github.com/Kntnt/kntnt-canvas).
+		where it can be downloaded as zip-file (e.g. https://github.com/
+		Kntnt/kntnt-canvas-1.0.0). The last listed theme is activated.
+		If omitted, twentytwentyfour will be used.
 
 	\e[1m-P <plugins>\e[0m
 	\e[1m--plugins=<plugins>\e[0m
@@ -409,10 +408,11 @@ EOT
 	rename_version_suffixed_directories wp-content/plugins
 
 	# Activate the last listed theme
-	ddev wp theme activate $(expr "${themes[-1]}" : '^.*/\(.*\)-[[:digit:].]*$')
+	theme=${themes[-1]}; [[ "$theme" == */* ]] && theme="${theme##*/}" || true; theme=$(expr "$theme" : '^\(.*\)-[[:digit:].]*$' \| "$theme");
+	ddev wp theme activate $theme
 
 	# Launch site
-	ddev launch $name
+	ddev launch
 
 	# Inform user.
 	echo -e "\e[1;30;103m\n\nYou should now see your new WordPress site in your browser.\n\nUsername: $user\npassword: $password\n\e[0m"
