@@ -481,6 +481,3 @@ set -u
 	echo -e "\e[1;30;103m\n\nYou should now see your new WordPress site in your browser.\n\nUsername: $user\npassword: $password\n\e[0m"
 
 ) 
-
-
-
