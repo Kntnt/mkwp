@@ -12,21 +12,21 @@ help() {
 	\e[1mmkwp\e[0m [OPTION]... [NAME]
 
 \e[1mDESCRIPTION\e[0m
-	Makes a local WordPress site with the domain `name.ddev.site` where
-	`name` is the domain name provided as the argument [NAME].
+	Makes a local WordPress site with the domain \e[1mname.ddev.site\e[0m where
+	\e[1mname\e[0m is the domain name provided as the argument [NAME].
 
 	If a flag is not specified on the command line, the corresponding option
 	is in the first place set to a value read from the configuration file
-	specified with `-c` or `--config`, in the second place to a value read
-	from the configuration file `~/.mkwp`, and in the third place to
+	specified with \e[1m-c\e[0m or \e[1m--config\e[0m, in the second place to a value read
+	from the configuration file \e[1m~/.mkwp\e[0m, and in the third place to
 	a default value.
 
-	If the configuration file `~/.mkwp` is missing, an empty one will be
+	If the configuration file \e[1m~/.mkwp\e[0m is missing, an empty one will be
 	created.
 
 	A configuration files should be formatted so that each line starting
 	with the name of a long format flag, excluding leading double dashes
-	(e.g. `email` instead of `--email`), followed by an equal sign, where
+	(e.g. \e[1memail\e[0m instead of \e[1m--email\e[0m), followed by an equal sign, where
 	the corresponding flag has not been specified on the command line,
 	the flag is specified with the option set to the value following
 	the equal sign. White space may be used around the equal sign.
@@ -69,19 +69,18 @@ help() {
 
 	\e[1m-T <themes>\e[0m
 	\e[1m--themes=<themes>\e[0m
-		Comma spearared list of themes to install. For each theme,
-		provide the theme's slug (e.g. twentytwentyfour) or a URL from
-		where it can be downloaded as zip-file (e.g. https://github.com/
-		Kntnt/kntnt-canvas-1.0.0). The last listed theme is activated.
-		If omitted, twentytwentyfour will be used.
+		Comma spearared list of themes to install. For a theme hosted on
+		WordPress.org, enter its slug or URL to its zip-file. For a theme
+		hosted in a remote Git repository, enter its remote URL. For a
+		theme hosted locally, enter the path to the zip file. The last listed
+		theme is activated. If omitted, twentytwentyfour will be used.
 
 	\e[1m-P <plugins>\e[0m
 	\e[1m--plugins=<plugins>\e[0m
-		Comma spearared list of plugins to install. For each plugin,
-		provide the plugin's slug (e.g. create-block-theme) or a URL from
-		where it can be downloaded as zip-file (e.g. https://downloads.
-		wordpress.org/plugin/create-block-theme.1.13.8.zip). If omitted,
-		no plugins will be installed.
+		Comma spearared list of plugins to install. For a plugin hosted on
+		WordPress.org, enter its slug or URL to its zip-file. For a plugin
+		hosted in a remote Git repository, enter its remote URL. For a plugin
+		hosted locally, enter the path to the zip file.
 
 	\e[1m-M <plugins>\e[0m
 	\e[1m--mu-plugins=<plugins>\e[0m
@@ -221,9 +220,29 @@ handle_config_files() {
 
 }
 
+# Usage: theme_to_activate <theme-list>
+# Echo the slug of the last theme in the list of themes <theme-list>.
+theme_to_activate() {
+
+	(
+
+		# Enable the extended pattern matching
+		shopt -s extglob
+
+		# Extract the last item of <theme-list>
+		local theme=${1##*,}
+
+		# Echo the basename without the suffix
+		echo ${theme//+(*\/|.*)}
+
+	)
+
+}
+
 # Usage: make_uniq_array <items>
 # When called, <items> should be a comma-separated list of items. After the
-# call, <items> contains an array where all items occur exactly once.
+# call, <items> contains an array where all items occur exactly once. Note that
+# the original order of <items> is not maintained.
 make_uniqe_array() {
 
 	# Uses name reference to refer to the original variable 
@@ -237,7 +256,7 @@ make_uniqe_array() {
 
 	# Adds each element from tempArray to tempAssocArray to eliminate duplicates
 	for element in "${tempArray[@]}"; do
-	tempAssocArray["$element"]=1
+		tempAssocArray["$element"]=1
 	done
 
 	# Turns the associative array back into an indexed array without duplicates
@@ -245,31 +264,85 @@ make_uniqe_array() {
 
 }
 
-# Usage: rename_version_suffixed_directories <dir>
-# When downloading a theme or plugin zip file from GitHub (and maybe other
-# places), the name of the file is the name of the theme or plugin followed by
-# a hyphen and version number. When the zip file is unpacked, the directory
-# gets the same suffix. This function finds all subdirectories in <dir> and
-# removes this suffix.
-rename_version_suffixed_directories() {
-	find . -type d -regextype posix-extended -regex '.+-[[:digit:].]+$' -print0 | while IFS= read -rd $'\0' old; do
-		mv "$old" "$(expr "$old" : '^\(.*\)-[[:digit:].]*$')"
-	done
+# Usage: download_latest_tag <remote-git-repository-url>
+# Clones <remote-git-repository-url> and checkout the latest tag.
+# The local repository created in the process is removed. The argument
+# <remote-git-repository-url> must be the URL to a remote repository.
+# Example: https://github.com/Kntnt/kntnt-canvas.git
+# Example: git@github.com:Kntnt/kntnt-canvas.git
+download_latest_tag() {
+	
+	(
+
+		# Enable the extended pattern matching
+		shopt -s extglob
+
+		local repo=$1
+		local name=${repo//+(*\/|.*)}
+
+
+		# Create a directory for the local repository
+		mkdir -p $name
+		cd $name
+
+		# Fetch tags from remote the remote repository
+		git init .
+		git remote add origin $repo
+		git fetch --tags
+
+		# Get the last tag
+		tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+		
+		# Check out the last tag
+		git checkout $tag
+
+		# Remove the repository
+		rm -rf .git
+
+	)
+
 }
+
+# Usage: install <list-name>
+# Install the items listed in the array variable with the name <list-name> into
+# a directory with the sama name placed underneath the directory `wp-content`.
+# For the intended function, <list-name> should be `themes`, `plugins` or
+# `mu-plugins`.
+install() {
+
+	(
+
+		local type=${1%s}
+		local -n items=$1
+		
+		cd "$wp/wp-content/${type}s"
+
+		for item in ${items[@]}; do
+			case "$item" in
+				*.php) curl -OLf "$item" ;;
+			    *.git) download_latest_tag "$item" ;;
+			    *)     ddev wp $type install "$item" ;;
+			esac
+		done
+
+	)
+
+}
+
 
 # =============================================================================
 
-# For debugging only
-# Print a trace of simple commands, for commands, case commands, select
-# commands, and arithmetic for commands and their arguments or associated word
-# lists after they are expanded and before they are executed. The value of the
-# PS4 variable is expanded and the resultant value is printed before the
-# command and its expanded arguments.
-# set -x
 
-# If set, the return value of a pipeline is the value of the last (rightmost)
-# command to exit with a non-zero status, or zero if all commands in the
-# pipeline exit successfully. This option is disabled by default. 
+# If MKWP_DEBUG is defined, print a trace of simple commands, for commands,
+# case commands, select commands, and arithmetic for commands and their
+# arguments or associated word lists after they are expanded and before they
+# are executed. The value of the PS4 variable is expanded and the resultant
+# value is printed before the command and its expanded arguments.
+[[ $MKWP_DEBUG ]] && set -x
+
+# The return value of a pipeline is the value of the last (rightmost) command
+# to exit with a non-zero status, or zero if all commands in the pipeline exit
+# successfully.
 set -o pipefail
  
 # Treat unset variables and parameters other than the special parameters ‘@’ or
@@ -278,60 +351,64 @@ set -o pipefail
 # standard error, and a non-interactive shell will exit. 
 set -u
 
-# Set options variables used by the script. Should another variable sneak into
-# the script, it is an error and `set -u` aborts the execution.
-name=
-title=
-directory=
-email=
-user=
-password=
-language=
-themes=
-plugins=
-mu_plugins=
-php=
-config=
-
-# Parse the argument list from the command line
-handle_arguments "$@"
-
-# Parse config files
-handle_config_files
-
-# Default values
-title=${title:=${name^}}
-directory=${directory:=$(pwd)}
-email=${email:=$(whoami)@$(hostname)}
-user=${user:=${email%@*}}
-password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
-language=${language:=en_US}
-themes=${themes:=twentytwentyfour}
-php=${php:=7.4}
-
-# Some other values
-wp="$directory/$name"
-url="https://$name.ddev.site"
-
-# Validate options
-[[ "$name" =~ ^[[:alpha:]]([[:alpha:]]|[[:digit:]]|[-.])*$ ]] || die "Invalid name" 11
-[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
-mkdir -p $wp || die "Can't create directory: $wp" 5
-[[ "$email" =~ ^([A-Za-z]+[A-Za-z0-9]*((\.|\-|\_)?[A-Za-z]+[A-Za-z0-9]*){1,})@(([A-Za-z]+[A-Za-z0-9]*)+((\.|\-|\_)?([A-Za-z]+[A-Za-z0-9]*)+){1,})+\.([A-Za-z]{2,})+ ]] || die "Invalid email address: $email" 6
-[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7
-[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
-[[ "$php" =~ ^7\.[0-4]$|^8\.[0-3]$ ]] || die "Invalid PHP version: $php" 9
-
-# Remove duplicates from list of themes and plugins and convert them to arrays.
-make_uniqe_array themes
-make_uniqe_array plugins
-make_uniqe_array mu_plugins
-
-# Chek that DDEV is working
-ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
-
-# Create subshell to allow the script to change directory without having to worry about restoring the user's current working directory
+# The main script
 (
+
+	# Set options variables used by the script. Should another variable sneak into
+	# the script, it's an error and `set -u` aborts the execution.
+	name=
+	title=
+	directory=
+	email=
+	user=
+	password=
+	language=
+	themes=
+	plugins=
+	mu_plugins=
+	php=
+	config=
+
+	# Parse the argument list from the command line
+	handle_arguments "$@"
+
+	# Parse config files
+	handle_config_files
+
+	# Default values
+	title=${title:=${name^}}
+	directory=${directory:=$(pwd)}
+	email=${email:=$(whoami)@$(hostname)}
+	user=${user:=${email%@*}}
+	password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
+	language=${language:=en_US}
+	themes=${themes:=twentytwentyfour}
+	php=${php:=7.4}
+
+	# Some other values
+	wp="$directory/$name"
+	url="https://$name.ddev.site"
+
+	# Validate options
+	[[ "$name" =~ ^[[:alpha:]]([[:alpha:]]|[[:digit:]]|[-.])*$ ]] || die "Invalid name" 11
+	[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
+	mkdir -p $wp || die "Can't create directory: $wp" 5
+	[[ "$email" =~ ^([A-Za-z]+[A-Za-z0-9]*((\.|\-|\_)?[A-Za-z]+[A-Za-z0-9]*){1,})@(([A-Za-z]+[A-Za-z0-9]*)+((\.|\-|\_)?([A-Za-z]+[A-Za-z0-9]*)+){1,})+\.([A-Za-z]{2,})+ ]] || die "Invalid email address: $email" 6
+	[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7
+	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
+	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-3]$ ]] || die "Invalid PHP version: $php" 9
+
+	# Get the theme to activate
+	theme=$(theme_to_activate $themes)
+
+	# Remove duplicates from list of themes and plugins and convert them to arrays.
+	# Note that the original order of the lists is not maintained.
+	make_uniqe_array themes
+	make_uniqe_array plugins
+	make_uniqe_array mu_plugins
+
+	# Chek that DDEV is working
+	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
 
 	# Enter the WordPress root directory (which was created as a side effect when the directory was validated).
 	cd $wp
@@ -344,7 +421,7 @@ ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider 
 	max_input_time = 0          ; infinite time
 	max_execution_time = 0      ; infinite time
 	default_socket_timeout = -1 ; infinite time
-EOT
+	EOT
 
 	# Configure and start the Docker container
 	ddev config --project-type=wordpress --disable-settings-management --php-version=$php --performance-mode=mutagen
@@ -355,7 +432,7 @@ EOT
 
 	# Wait for Mutagen to sync.
 	echo -n "Wait for Mutagen to sync "
-	while [ ! -f "$wp/index.php" ]; do
+	while [ ! -f "index.php" ]; do
 		echo -n '.'
 		sleep 1;
 	done
@@ -373,7 +450,7 @@ EOT
 	define( 'WP_DEBUG', true );
 	define( 'WP_DEBUG_LOG', true );
 	define( 'WP_DEBUG_DISPLAY', false );
-EOT
+	EOT
 
 	# Install WordPress
 	ddev wp core install --url="$url" --title="$title" --admin_user="$user" --admin_password="$password" --admin_email="$email" --skip-email
@@ -383,32 +460,18 @@ EOT
 
 	# Remove default themes and plugins
 	rm -rf wp-content/themes/* wp-content/plugins/*
-	cp index.php themes
-	cp index.php plugins
 
-	# Install themes
-	for theme in "${themes[@]}"; do
-		ddev wp theme install "$theme"
-	done
+	# Add empty index.php file
+	cp wp-content/index.php wp-content/themes
+	cp wp-content/index.php wp-content/plugins
+	cp wp-content/index.php wp-content/mu-plugins
 
-	# Install plugins
-	for plugin in "${plugins[@]}"; do
-		ddev wp plugin install "$plugin"
-	done
-
-	# Install mu-plugins
-	cd wp-content/mu-plugins
-	for url in "${mu_plugins[@]}"; do
-		curl -O $url
-	done
-
-	# Remove the version number from themes and plugins directories that
-	# have it at the end of their name.
-	rename_version_suffixed_directories wp-content/themes
-	rename_version_suffixed_directories wp-content/plugins
+	# Install themes and plugins
+	install themes
+	install plugins
+	install mu-plugins
 
 	# Activate the last listed theme
-	theme=${themes[-1]}; [[ "$theme" == */* ]] && theme="${theme##*/}" || true; theme=$(expr "$theme" : '^\(.*\)-[[:digit:].]*$' \| "$theme");
 	ddev wp theme activate $theme
 
 	# Launch site
@@ -417,5 +480,4 @@ EOT
 	# Inform user.
 	echo -e "\e[1;30;103m\n\nYou should now see your new WordPress site in your browser.\n\nUsername: $user\npassword: $password\n\e[0m"
 
-# End of subshell.
-)
+) 
