@@ -320,8 +320,8 @@ install() {
 		for item in ${items[@]}; do
 			case "$item" in
 				*.php) curl -OLf "$item" ;;
-			    *.git) download_latest_tag "$item" ;;
-			    *)     ddev wp $type install "$item" ;;
+				*.git) download_latest_tag "$item" ;;
+				*)     ddev wp $type install "$item" ;;
 			esac
 		done
 
