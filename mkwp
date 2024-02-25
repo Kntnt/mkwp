@@ -171,8 +171,6 @@ handle_arguments() {
 		esac
 	done
 
-	[[ -z "$name" ]] && die "Error: Missing name of the project." 3
-
 }
 
 # Usage: handle_config_files
@@ -188,7 +186,7 @@ handle_config_files() {
 		# Use /dev/stdin if config file is -
 		[[ "$config" = "-" ]] && config="/dev/stdin"
 
-		# Validare config file
+		# Validate config file
 		touch $config &> /dev/null && [[ -r $config ]] || die "Invalid path to config file" 10
 
 		# Add the config file to the list of files to read configuration from
@@ -204,14 +202,18 @@ handle_config_files() {
 
 
 		# Validate the line structure
-		if [[ $line =~ ^(title|directory|email|user|password|language|php)\s*=\s*(.*) ]]; then
+		if [[ $line =~ ^(title|directory|email|user|password|language|themes|plugins|mu-plugins|php)\s*=\s*(.*) ]]; then
 
 			# Extract keyword and value
 			local key="${BASH_REMATCH[1]}"
 			local value="${BASH_REMATCH[2]}"
 
-			# If the variable named in $key has no value, $value is assigned to a variable named after the key.
-			# This uses declare to dynamically create variables and printf %q to ensure the value is safely quoted
+			# Check if a variable named by the content of "key" is unset or
+			# empty. If so, it globally declares this variable with the name
+			# stored in "key" and assigns it a value that is the output of
+			# "value".
+			+x} ]] && declare -g "$key=$(printf "%q" "$value")"
+
 			[[ -z ${!key+x} ]] && declare -g "$key=$(printf "%q" "$value")"
 
 		fi
@@ -388,8 +390,10 @@ set -u
 	# Some other values
 	wp="$directory/$name"
 	url="https://$name.ddev.site"
+	ddev_projects=$(ddev list -j)
 
 	# Validate options
+	[[ "$name" ]] || die "Error: Missing name of the project." 3
 	[[ "$name" =~ ^[[:alpha:]]([[:alpha:]]|[[:digit:]]|[-.])*$ ]] || die "Invalid name" 11
 	[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
 	mkdir -p $wp || die "Can't create directory: $wp" 5
@@ -397,6 +401,10 @@ set -u
 	[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7
 	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
 	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-3]$ ]] || die "Invalid PHP version: $php" 9
+	[[ -e "$wp" ]] && die "$wp already exists $wp" 13
+	[[ -d $directory ]] && [[ -w $directory ]] || die "Cannot create $wp" 14
+	echo $ddev_projects_json=$(ddev list -j) || grep -q "\"approot\":\"$wp\"" || die "A DDEV project already exists in the directory $wp." 15
+	echo $ddev_projects_json=$(ddev list -j) || grep -q "\"name\":\"$project_name\"" || die "A project named '$name' already exists in DDEV." 16
 
 	# Get the theme to activate
 	theme=$(theme_to_activate $themes)
