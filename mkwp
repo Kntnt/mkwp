@@ -26,9 +26,9 @@ help() {
 
 	A configuration files should be formatted so that each line starting
 	with the name of a long format flag, excluding leading double dashes
-	(e.g. \e[1memail\e[0m instead of \e[1m--email\e[0m), followed by an equal sign, where
-	the corresponding flag has not been specified on the command line,
-	the flag is specified with the option set to the value following
+	(e.g. \e[1memail\e[0m instead of \e[1m--email\e[0m), followed by an equal
+	sign, where the corresponding flag has not been specified on the command
+	line, the flag is specified with the option set to the value following
 	the equal sign. White space may be used around the equal sign.
 	Examples:
 
@@ -190,7 +190,7 @@ handle_config_files() {
 		touch $config &> /dev/null && [[ -r $config ]] || die "Invalid path to config file" 10
 
 		# Add the config file to the list of files to read configuration from
-		files+=(/dev/stdin)
+		files+=($config)
 
 	fi
 
@@ -202,19 +202,17 @@ handle_config_files() {
 
 
 		# Validate the line structure
-		if [[ $line =~ ^(title|directory|email|user|password|language|themes|plugins|mu-plugins|php)\s*=\s*(.*) ]]; then
+		if [[ $line =~ ^(name|title|directory|email|user|password|language|themes|plugins|mu-plugins|php)[[:space:]]*=[[:space:]]*(.*) ]]; then
 
 			# Extract keyword and value
-			local key="${BASH_REMATCH[1]}"
+			local key="${BASH_REMATCH[1]//-/_}"
 			local value="${BASH_REMATCH[2]}"
 
-			# Check if a variable named by the content of "key" is unset or
-			# empty. If so, it globally declares this variable with the name
-			# stored in "key" and assigns it a value that is the output of
-			# "value".
-			+x} ]] && declare -g "$key=$(printf "%q" "$value")"
-
-			[[ -z ${!key+x} ]] && declare -g "$key=$(printf "%q" "$value")"
+			# If the global variable named in $key is empty, assign it the
+			# value in $value. N.B. We know that $key contains a name of
+			# an already declared global variable, since all variables namnes
+			# in the regex above are declared before this function is called.
+			[[ -z ${!key} ]] && eval "$key=$(printf "%q" "$value")"
 
 		fi
 
@@ -390,21 +388,36 @@ set -u
 	# Some other values
 	wp="$directory/$name"
 	url="https://$name.ddev.site"
-	ddev_projects=$(ddev list -j)
+
+	# Echo all parameters used by the script.
+	echo "name=$name"
+	echo "title=$title"
+	echo "directory=$directory"
+	echo "email=$email"
+	echo "user=$user"
+	echo "password=$password"
+	echo "language=$language"
+	echo "themes=$themes"
+	echo "plugins=$plugins"
+	echo "mu_plugins=$mu_plugins"
+	echo "php=$php"
+	echo "config=$config"
+	echo "wp=$wp"
+	echo "url=$url"
 
 	# Validate options
+	ddev_projects=$(ddev list -j)
+	if echo $ddev_projects | grep -q "\"approot\":\"$wp\""; then die "A DDEV project already exists in the directory $wp." 15; fi
+	if echo $ddev_projects | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
 	[[ "$name" ]] || die "Error: Missing name of the project." 3
 	[[ "$name" =~ ^[[:alpha:]]([[:alpha:]]|[[:digit:]]|[-.])*$ ]] || die "Invalid name" 11
 	[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
-	mkdir -p $wp || die "Can't create directory: $wp" 5
 	[[ "$email" =~ ^([A-Za-z]+[A-Za-z0-9]*((\.|\-|\_)?[A-Za-z]+[A-Za-z0-9]*){1,})@(([A-Za-z]+[A-Za-z0-9]*)+((\.|\-|\_)?([A-Za-z]+[A-Za-z0-9]*)+){1,})+\.([A-Za-z]{2,})+ ]] || die "Invalid email address: $email" 6
 	[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7
 	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
 	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-3]$ ]] || die "Invalid PHP version: $php" 9
 	[[ -e "$wp" ]] && die "$wp already exists $wp" 13
 	[[ -d $directory ]] && [[ -w $directory ]] || die "Cannot create $wp" 14
-	echo $ddev_projects_json=$(ddev list -j) || grep -q "\"approot\":\"$wp\"" || die "A DDEV project already exists in the directory $wp." 15
-	echo $ddev_projects_json=$(ddev list -j) || grep -q "\"name\":\"$project_name\"" || die "A project named '$name' already exists in DDEV." 16
 
 	# Get the theme to activate
 	theme=$(theme_to_activate $themes)
@@ -418,7 +431,8 @@ set -u
 	# Chek that DDEV is working
 	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
 
-	# Enter the WordPress root directory (which was created as a side effect when the directory was validated).
+	# Create and enter the WordPress root directory.
+	mkdir -p $wp
 	cd $wp
 
 	# Create local php.ini with infinite timeout. Don't use on production!
