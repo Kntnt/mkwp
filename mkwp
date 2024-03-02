@@ -19,7 +19,7 @@ help() {
 	is in the first place set to a value read from the configuration file
 	specified with \e[1m-c\e[0m or \e[1m--config\e[0m, in the second place to a value read
 	from the configuration file \e[1m~/.mkwp\e[0m, and in the third place to
-	a default value.
+	a default value.git
 
 	If the configuration file \e[1m~/.mkwp\e[0m is missing, an empty one will be
 	created.
@@ -271,32 +271,62 @@ make_uniqe_array() {
 # Example: https://github.com/Kntnt/kntnt-canvas.git
 # Example: git@github.com:Kntnt/kntnt-canvas.git
 download_latest_tag() {
-	
-	(
 
-		# Enable the extended pattern matching
+	(
+		
+		# Enable Bash extended globbing features
 		shopt -s extglob
 
+		# Store the first argument of the function in 'repo', which should be the repository URL
 		local repo=$1
+		
+		# Extract the repository name from the URL for use as the directory name
 		local name=${repo//+(*\/|.*)}
 
+		# The label of the tag or bransch to be checked out
+		local checkout=
 
-		# Create a directory for the local repository
-		mkdir -p $name
-		cd $name
+		# Create a new directory named after the repository and change into it
+		mkdir -p "$name"
+		cd "$name"
 
-		# Fetch tags from remote the remote repository
-		git init .
-		git remote add origin $repo
-		git fetch --tags
-
-		# Get the last tag
-		tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+		# Initialize a new Git repository and add a remote pointing to the original repository
+		git init
+		git remote add origin "$repo"
 		
-		# Check out the last tag
-		git checkout $tag
+		# Fetch all tags from the remote repository, cleaning up any deleted references
+		git fetch --prune --tags
 
-		# Remove the repository
+		# Attempt to identify the latest tag in the remote repository
+		local tag=$(git rev-list --tags --max-count=1)
+
+		# If a tag is found, convert the tag hash to its name and checkout the tag
+		if [[ -n $tag ]]; then
+
+			# Convert the latest tag hash to the tag name
+			checkout=$(git describe --tags "$tag")
+
+			echo "Checking out tag: $checkout"
+
+		# If no tags are found, try to find and checkout the default branch
+		else
+
+			# Fetch the name of the default branch from the remote repository, ensuring output in English
+			local default_branch=$(LC_ALL=C git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+
+			# Fetch the latest state of the default branch and switch to it in a detached HEAD state
+			git fetch origin "$default_branch"
+
+			checkout="origin/$default_branch"
+
+			echo "No tags found, attempting to check out the default branch: $default_branch"
+
+		fi
+
+		# Checkout the code
+		git checkout "$checkout"
+
+		# Remove the .git directory to clean up repository metadata from the local filesystem
 		rm -rf .git
 
 	)
