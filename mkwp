@@ -334,6 +334,37 @@ download_latest_tag() {
 
 }
 
+
+# Usage: wp_install <type> <item>
+# Call `wp <type> install <item>`` where <type> is `theme` or `plugin`, and
+# <item> is permissible slug, local path to a zip-file.
+wp_install() {
+
+	local type="$1"
+	local item="$2"
+	local remove=
+
+	# Deal with local path
+	if [[ -f $item ]]; then
+
+		# Temporary copy the zip-file into the container
+		mkdir -p "$wp/.mkwp"
+		cp $item "$wp/.mkwp/"
+		item=".mkwp/$(basename $item)"
+
+		# Wait up to 15 seconds for mutagen to sync
+		local count=0; while [[ $count -lt 15 && ! $(ddev exec ls $item &>/dev/null; echo $?) -eq 0 ]]; do sleep 1; ((count++)); done
+
+	fi
+
+	# Install
+	ddev wp $type install "$item"
+
+	# Remove temporary copy if exisiting.
+	ddev exec rm -rf .mkwp
+
+}
+
 # Usage: install <list-name>
 # Install the items listed in the array variable with the name <list-name> into
 # a directory with the sama name placed underneath the directory `wp-content`.
@@ -352,7 +383,7 @@ install() {
 			case "$item" in
 				*.php) curl -OLf "$item" ;;
 				*.git) download_latest_tag "$item" ;;
-				*)     ddev wp $type install "$item" ;;
+				*)     wp_install $type $item ;;
 			esac
 		done
 
