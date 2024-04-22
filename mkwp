@@ -400,7 +400,7 @@ install() {
 # arguments or associated word lists after they are expanded and before they
 # are executed. The value of the PS4 variable is expanded and the resultant
 # value is printed before the command and its expanded arguments.
-[[ $MKWP_DEBUG ]] && set -x
+[[ $MKWP_DEBUG ]] && set -x || MKWP_DEBUG=
 
 # The return value of a pipeline is the value of the last (rightmost) command
 # to exit with a non-zero status, or zero if all commands in the pipeline exit
@@ -450,21 +450,23 @@ set -u
 	wp="$directory/$name"
 	url="https://$name.ddev.site"
 
-	# Echo all parameters used by the script.
-	echo "name=$name"
-	echo "title=$title"
-	echo "directory=$directory"
-	echo "email=$email"
-	echo "user=$user"
-	echo "password=$password"
-	echo "language=$language"
-	echo "themes=$themes"
-	echo "plugins=$plugins"
-	echo "mu_plugins=$mu_plugins"
-	echo "php=$php"
-	echo "config=$config"
-	echo "wp=$wp"
-	echo "url=$url"
+	# Echo all parameters used by the script if debugging.
+	if [[ $MKWP_DEBUG ]] ; then
+		echo "name=$name"
+		echo "title=$title"
+		echo "directory=$directory"
+		echo "email=$email"
+		echo "user=$user"
+		echo "password=$password"
+		echo "language=$language"
+		echo "themes=$themes"
+		echo "plugins=$plugins"
+		echo "mu_plugins=$mu_plugins"
+		echo "php=$php"
+		echo "config=$config"
+		echo "wp=$wp"
+		echo "url=$url"
+	fi
 
 	# Validate options
 	ddev_projects=$(ddev list -j)
