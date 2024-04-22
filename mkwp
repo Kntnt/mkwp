@@ -3,13 +3,14 @@
 # mkwp by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
+
 help() {
 
 	echo -e "NAME
 	mkwp - make wordpress
 
 \e[1mSYNOPSIS\e[0m
-	\e[1mmkwp\e[0m [OPTION]... [NAME]
+	\e[1mmkwp\e[0m [OPTION]... NAME
 
 \e[1mDESCRIPTION\e[0m
 	Makes a local WordPress site with the domain \e[1mname.ddev.site\e[0m where
@@ -105,14 +106,14 @@ help() {
 
 \e[1mDEPENDENCY\e[0m
 	This command requires that a Docker provider is installed and running
-	on your system and that DDEV is properly installed and in your path."
+	on your system and that DDEV is properly installed and in your path." | less -R
 
 }
 
 # Usage: die <message> <satus>
 # Echos the <message> and exit with the status code <status>
 die() {
-	echo "${1:-}" 1>&2
+	echo -e "\033[0;31m${1:-}\033[0m" 1>&2
 	exit "${2:-0}"
 }
 
@@ -151,8 +152,6 @@ extract_argument() {
 # line, and creating corresponding variables containing options.
 handle_arguments() {
 
-	[[ $# = 0 ]] && help && die
-
 	while [[ $# > 0 ]]; do
 		case $1 in
 			-h | --help) help; die ;;
@@ -167,9 +166,11 @@ handle_arguments() {
 			-M | --mu-plugins=*) extract_argument mu_plugins $@; shift $? ;;
 			-V | --php=*) extract_argument php $@; shift $? ;;
 			-c | --config=*) extract_argument config $@; shift $? ;;
-			*) [ -z "$name" ] && name="$1" && shift || die "Error: Invalid flag: $1" 2 ;;
+			*) [ -z "$name" ] && name="$1" && shift || die "\033[0;31mError: Invalid flag: $1\033[0m" 2 ;;
 		esac
 	done
+
+	[[ -z "$name" ]] && die "The required argument NAME is missing. See \033[1mmkwp -h\033[22m for more information." 5
 
 }
 
@@ -195,7 +196,7 @@ handle_config_files() {
 	fi
 
 	# Add ~/.mkwp file to the list of configuration files if is readable. Create ~/.mkwp if it doesn't exist.
-	touch ~/.mkwp &> /dev/null && [[ -r ~/.mkwp ]] && files+=(~/.mkwp) || die "Couldn't create ~/.mkwp" 10
+	touch ~/.mkwp &> /dev/null && [[ -r ~/.mkwp ]] && files+=(~/.mkwp) || die "Couldn't create ~/.mkwp" 12
 
 	# Read config files
 	while IFS= read -r line || [ "$line" ]; do
@@ -405,7 +406,8 @@ set -u
 	# Parse config files
 	handle_config_files
 
-	# Default values
+	# Tidy up, fill in default values and add some extra variables.
+	name=${name,,}
 	title=${title:=${name^}}
 	directory=${directory:=$(pwd)}
 	email=${email:=$(whoami)@$(hostname)}
@@ -414,8 +416,6 @@ set -u
 	language=${language:=en_US}
 	themes=${themes:=twentytwentyfour}
 	php=${php:=7.4}
-
-	# Some other values
 	wp="$directory/$name"
 	url="https://$name.ddev.site"
 
