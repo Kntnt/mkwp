@@ -93,7 +93,7 @@ help() {
 
 	\e[1m-V <version>\e[0m
 	\e[1m--php=<version>\e[0m
-		Version of PHP to be used. If omitted, PHP 7.4 will be used.
+		Version of PHP to be used. If omitted, PHP 8.3 will be used.
 
 	\e[1m-c <file>\e[0m
 	\e[1m--config=<file>\e[0m
@@ -446,7 +446,7 @@ set -u
 	password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
 	language=${language:=en_US}
 	themes=${themes:=twentytwentyfour}
-	php=${php:=7.4}
+	php=${php:=8.3}
 	wp="$directory/$name"
 	url="https://$name.ddev.site"
 
