@@ -70,7 +70,8 @@ OPTIONS
 		WordPress.org, enter its slug or URL to its zip-file. For a theme
 		hosted in a remote Git repository, enter its remote URL. For a
 		theme hosted locally, enter the path to the zip file. The last listed
-		theme is activated. If omitted, twentytwentyfour will be used.
+		theme is activated. If omitted, WordPress's current default theme
+		will be used.
 
 	-P <plugins>
 	--plugins=<plugins>

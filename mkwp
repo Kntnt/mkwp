@@ -74,7 +74,8 @@ help() {
 		WordPress.org, enter its slug or URL to its zip-file. For a theme
 		hosted in a remote Git repository, enter its remote URL. For a
 		theme hosted locally, enter the path to the zip file. The last listed
-		theme is activated. If omitted, twentytwentyfour will be used.
+		theme is activated. If omitted, WordPress's current default theme
+		will be used.
 
 	\e[1m-P <plugins>\e[0m
 	\e[1m--plugins=<plugins>\e[0m
@@ -247,7 +248,13 @@ theme_to_activate() {
 make_uniqe_array() {
 
 	# Uses name reference to refer to the original variable 
-	local -n arr=$1 
+	local -n arr=$1
+
+	# If the string is empty, set it to an empty array and return
+	if [[ -z "$arr" ]]; then
+		arr=()
+		return
+	fi
 
 	# Splits the string into an array at each comma
 	IFS=',' read -r -a tempArray <<< "$arr" 
@@ -445,7 +452,7 @@ set -u
 	user=${user:=${email%@*}}
 	password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
 	language=${language:=en_US}
-	themes=${themes:=twentytwentyfour}
+	themes=${themes:=}
 	php=${php:=8.3}
 	wp="$directory/$name"
 	url="https://$name.ddev.site"
@@ -481,15 +488,6 @@ set -u
 	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-3]$ ]] || die "Invalid PHP version: $php" 9
 	[[ -e "$wp" ]] && die "$wp already exists $wp" 13
 	[[ -d $directory ]] && [[ -w $directory ]] || die "Cannot create $wp" 14
-
-	# Get the theme to activate
-	theme=$(theme_to_activate $themes)
-
-	# Remove duplicates from list of themes and plugins and convert them to arrays.
-	# Note that the original order of the lists is not maintained.
-	make_uniqe_array themes
-	make_uniqe_array plugins
-	make_uniqe_array mu_plugins
 
 	# Chek that DDEV is working
 	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
@@ -539,6 +537,20 @@ set -u
 
 	# Install WordPress
 	ddev wp core install --url="$url" --title="$title" --admin_user="$user" --admin_password="$password" --admin_email="$email" --skip-email
+
+	# If no theme is specified, default to the standard theme
+	if [[ -z "$themes" ]]; then
+		themes=$(ddev wp theme list --field=name 2> /dev/null | head -1)
+	fi
+
+	# Get the theme to activate
+	theme=$(theme_to_activate $themes)
+
+	# Remove duplicates from list of themes and plugins and convert them to arrays.
+	# Note that the original order of the lists is not maintained.
+	make_uniqe_array themes
+	make_uniqe_array plugins
+	make_uniqe_array mu_plugins
 
 	# Create home for "must use" plugins
 	mkdir -p wp-content/mu-plugins/DISABLED
