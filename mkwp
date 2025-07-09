@@ -398,6 +398,46 @@ install() {
 
 }
 
+# Usage: setup_cron
+# Sets up WordPress cron to run via system cron every minute using WP-CLI.
+# Creates necessary DDEV configuration files and restarts DDEV to enable cron.
+setup_cron() {
+
+	echo "Setting up WordPress cron..."
+
+	# Get the current user (file owner)
+	local file_owner=$(whoami)
+
+	# Create web-build directory for Docker customizations
+	mkdir -p .ddev/web-build
+
+	# Create Dockerfile for cron setup
+	cat <<- EOT > .ddev/web-build/Dockerfile
+	# Copy the custom cron job definition for WordPress
+	COPY cron /etc/cron.d/wp
+
+	# Ensure correct permissions for the cron file
+	RUN chmod 0644 /etc/cron.d/wp
+	EOT
+
+	# Create cron job file with correct file owner
+	cat <<- EOT > .ddev/web-build/cron
+	# Run WordPress cron via WP-CLI every minute
+	* * * * * $file_owner /usr/local/bin/wp --path=/var/www/html cron event run --due-now >> /dev/null 2>&1
+	EOT
+
+	# Add post-start hook to config.yaml
+	cat <<- EOT >> .ddev/config.yaml
+	hooks:
+	    post-start:
+	        - exec: sudo service cron start
+	EOT
+
+	# Restart DDEV to apply cron configuration
+	echo "Restarting DDEV to enable cron..."
+	ddev restart
+
+}
 
 # =============================================================================
 
@@ -523,7 +563,7 @@ set -u
 
 	# Create wp-config.php
 	ddev wp config create --dbname=db --dbuser=db --dbpass=db --dbhost="ddev-$name-db" --dbprefix=wp_ --dbcharset=utf8mb4 --dbcollate=utf8mb4_unicode_ci --locale="$language" --extra-php <<- EOT
-	//define( 'DISABLE_WP_CRON', true );
+	define( 'DISABLE_WP_CRON', true );
 	define( 'WP_MEMORY_LIMIT', '64M' );
 	define( 'WP_MAX_MEMORY_LIMIT', '256M' );
 	define( 'DISALLOW_FILE_EDIT', true );
@@ -570,6 +610,9 @@ set -u
 
 	# Activate the last listed theme
 	ddev wp theme activate $theme
+
+	# Setup system cron to run WordPress cron
+	setup_cron
 
 	# Launch site
 	ddev launch
