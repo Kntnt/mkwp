@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.3.0 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.4.0 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
 
@@ -427,10 +427,12 @@ setup_cron() {
 	EOT
 
 	# Add post-start hook to config.yaml
+	sed -i '/#/,$d' .ddev/config.yaml
+	sed -i -e :a -e '/^\s*$/{$d;N;ba' -e '}' .ddev/config.yaml
 	cat <<- EOT >> .ddev/config.yaml
 	hooks:
-	    post-start:
-	        - exec: sudo service cron start
+		post-start:
+			- exec: sudo service cron start
 	EOT
 
 	# Restart DDEV to apply cron configuration
@@ -544,6 +546,19 @@ set -u
 	max_input_time = 0          ; infinite time
 	max_execution_time = 0      ; infinite time
 	default_socket_timeout = -1 ; infinite time
+	EOT
+
+	# Create host commands 'enter'
+	mkdir -p .ddev/commands/host
+	cat <<- 'EOT' > .ddev/commands/host/enter
+	#!/usr/bin/env bash
+	ddev ssh --dir="$(ddev exec pwd)/$(realpath --relative-to=$DDEV_APPROOT $(pwd))" "$@"
+	EOT
+
+	# Create host commands 'here'
+	cat <<- 'EOT' > .ddev/commands/host/here
+	#!/usr/bin/env bash
+	ddev exec --dir="$(ddev exec pwd)/$(realpath --relative-to=$DDEV_APPROOT $(pwd))" "$@"
 	EOT
 
 	# Configure and start the Docker container
