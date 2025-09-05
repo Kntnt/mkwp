@@ -431,8 +431,8 @@ setup_cron() {
 	sed -i -e :a -e '/^\s*$/{$d;N;ba' -e '}' .ddev/config.yaml
 	cat <<- EOT >> .ddev/config.yaml
 	hooks:
-		post-start:
-			- exec: sudo service cron start
+	    post-start:
+	        - exec: sudo service cron start
 	EOT
 
 	# Restart DDEV to apply cron configuration
