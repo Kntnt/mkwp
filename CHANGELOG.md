@@ -6,6 +6,16 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-06-11
+
+### Fixed
+
+- On PHP 8.5, the bundled default theme is detected correctly again. A
+  deprecation notice that WP-CLI prints to stdout was being mistaken for the
+  theme name, which made mkwp delete the bundled themes and leave the site
+  without a theme — a blank page (white screen of death) — when no theme was
+  given with `-T`.
+
 ## [1.4.0] - 2026-06-11
 
 ### Added
@@ -32,5 +42,6 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/1.4.0...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/Kntnt/mkwp/releases/tag/v1.4.1
 [1.4.0]: https://github.com/Kntnt/mkwp/releases/tag/1.4.0

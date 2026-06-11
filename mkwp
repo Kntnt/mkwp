@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.4.0 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.4.1 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
 
@@ -644,9 +644,11 @@ set -u
 	# Install WordPress
 	ddev wp core install --url="$url" --title="$title" --admin_user="$user" --admin_password="$password" --admin_email="$email" --skip-email
 
-	# If no theme is specified, default to the standard theme
+	# If no theme is specified, default to the standard theme. Filter to a
+	# valid theme slug so a PHP deprecation notice that some PHP/wp-cli
+	# versions print to stdout cannot be mistaken for the theme name.
 	if [[ -z "$themes" ]]; then
-		themes=$(ddev wp theme list --field=name 2> /dev/null | head -1)
+		themes=$(ddev wp theme list --field=name 2> /dev/null | grep -Em1 '^[A-Za-z0-9._-]+$')
 	fi
 
 	# Get the theme to activate
