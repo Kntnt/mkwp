@@ -16,46 +16,47 @@ help() {
 	Makes a local WordPress site with the domain \e[1mname.ddev.site\e[0m where
 	\e[1mname\e[0m is the domain name provided as the argument [NAME].
 
-	If a flag is not specified on the command line, the corresponding option
-	is in the first place set to a value read from the configuration file
-	specified with \e[1m-c\e[0m or \e[1m--config\e[0m, in the second place to a value read
-	from the configuration file \e[1m~/.mkwp\e[0m, and in the third place to
-	a default value.git
+	If a flag is not specified on the command line, the corresponding
+	option is in the first place set to a value read from the configuration
+	file specified with \e[1m-c\e[0m or \e[1m--config\e[0m, in the second place to a value read
+	from the configuration file \e[1m~/.mkwp\e[0m, and in the third place to a
+	default value.
 
 	If the configuration file \e[1m~/.mkwp\e[0m is missing, an empty one will be
 	created.
 
-	A configuration files should be formatted so that each line starting
+	A configuration file should be formatted so that each line starting
 	with the name of a long format flag, excluding leading double dashes
-	(e.g. \e[1memail\e[0m instead of \e[1m--email\e[0m), followed by an equal
-	sign, where the corresponding flag has not been specified on the command
-	line, the flag is specified with the option set to the value following
-	the equal sign. White space may be used around the equal sign.
+	(e.g. \e[1memail\e[0m instead of \e[1m--email\e[0m), followed by an equal sign, where the
+	corresponding flag has not been specified on the command line, the flag
+	is specified with the option set to the value following the equal sign.
+	White space may be used around the equal sign.
 	Examples:
 
-		title = WordPress Tets Site
-		php=8.3
+		title = WordPress Test Site
+		php=8.5
 
 \e[1mOPTIONS\e[0m
 	\e[1m-t <title>\e[0m
 	\e[1m--title=<title>\e[0m
-		The title of the WordPress site. If omitted, [NAME] will be used.
+		The title of the WordPress site. If omitted, [NAME] will be
+		used.
 
 	\e[1m-d <path>\e[0m
 	\e[1m--directory=<path>\e[0m
-		The home directory of the website. If omitted, current directory
-		will be used as home directory.
+		The home directory of the website. If omitted, current
+		directory will be used as home directory.
 
 	\e[1m-m <email>\e[0m
 	\e[1m--email=<email>\e[0m
 		The email address of the first user created in WordPress. If
-		If omitted, the current username is used as local-part and
-		the hostname as domain.
+		omitted, the current username is used as local-part and the
+		hostname as domain.
 
 	\e[1m-u <username>\e[0m
 	\e[1m--user=<username>\e[0m
-		The username of the first user created in WordPress. If omitted,
-		the local-part of the email address will be used.
+		The username of the first user created in WordPress. If
+		omitted, the local-part of the email address will be used.
 
 	\e[1m-p <password>\e[0m
 	\e[1m--password=<password>\e[0m
@@ -70,23 +71,23 @@ help() {
 
 	\e[1m-T <themes>\e[0m
 	\e[1m--themes=<themes>\e[0m
-		Comma spearared list of themes to install. For a theme hosted on
-		WordPress.org, enter its slug or URL to its zip-file. For a theme
-		hosted in a remote Git repository, enter its remote URL. For a
-		theme hosted locally, enter the path to the zip file. The last listed
-		theme is activated. If omitted, WordPress's current default theme
-		will be used.
+		Comma separated list of themes to install. For a theme hosted
+		on WordPress.org, enter its slug or URL to its zip-file. For a
+		theme hosted in a remote Git repository, enter its remote URL.
+		For a theme hosted locally, enter the path to the zip file. The
+		last listed theme is activated. If omitted, WordPress's current
+		default theme will be used.
 
 	\e[1m-P <plugins>\e[0m
 	\e[1m--plugins=<plugins>\e[0m
-		Comma spearared list of plugins to install. For a plugin hosted on
-		WordPress.org, enter its slug or URL to its zip-file. For a plugin
-		hosted in a remote Git repository, enter its remote URL. For a plugin
-		hosted locally, enter the path to the zip file.
+		Comma separated list of plugins to install. For a plugin hosted
+		on WordPress.org, enter its slug or URL to its zip-file. For a
+		plugin hosted in a remote Git repository, enter its remote URL.
+		For a plugin hosted locally, enter the path to the zip file.
 
 	\e[1m-M <plugins>\e[0m
 	\e[1m--mu-plugins=<plugins>\e[0m
-		Comma spearared list of mu-plugins to install. For each plugin,
+		Comma separated list of mu-plugins to install. For each plugin,
 		provide the plugin's URL from where it can be downloaded as
 		php-file (e.g. https://raw.githubusercontent.com/Kntnt/kntnt-
 		adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php).
@@ -94,12 +95,22 @@ help() {
 
 	\e[1m-V <version>\e[0m
 	\e[1m--php=<version>\e[0m
-		Version of PHP to be used. If omitted, PHP 8.3 will be used.
+		Version of PHP to be used. If omitted, PHP 8.5 will be used.
+
+	\e[1m-W <version>\e[0m
+	\e[1m--wp=<version>\e[0m
+		Version of WordPress to install, given as <major>,
+		<major>.<minor> or <major>.<minor>.<patch> (e.g. 6, 6.9 or
+		6.9.4). Omitted parts are resolved to the highest available
+		release. If omitted entirely, the latest version is installed.
+		The core auto-update policy reflects the precision: a full
+		<major>.<minor>.<patch> disables auto-updates, while <major> or
+		<major>.<minor> enables patch-level updates only.
 
 	\e[1m-c <file>\e[0m
 	\e[1m--config=<file>\e[0m
 		Reads configuration from a file with the path <file>.
-		See description above for deatils.
+		See description above for details.
 
 	\e[1m-h\e[0m
 	\e[1m--help\e[0m
@@ -166,6 +177,7 @@ handle_arguments() {
 			-P | --plugins=*) extract_argument plugins $@; shift $? ;;
 			-M | --mu-plugins=*) extract_argument mu_plugins $@; shift $? ;;
 			-V | --php=*) extract_argument php $@; shift $? ;;
+			-W | --wp=*) extract_argument wp $@; shift $? ;;
 			-c | --config=*) extract_argument config $@; shift $? ;;
 			*) [ -z "$name" ] && name="$1" && shift || die "\033[0;31mError: Invalid flag: $1\033[0m" 2 ;;
 		esac
@@ -204,7 +216,7 @@ handle_config_files() {
 
 
 		# Validate the line structure
-		if [[ $line =~ ^(name|title|directory|email|user|password|language|themes|plugins|mu-plugins|php)[[:space:]]*=[[:space:]]*(.*) ]]; then
+		if [[ $line =~ ^(name|title|directory|email|user|password|language|themes|plugins|mu-plugins|php|wp)[[:space:]]*=[[:space:]]*(.*) ]]; then
 
 			# Extract keyword and value
 			local key="${BASH_REMATCH[1]//-/_}"
@@ -355,8 +367,8 @@ wp_install() {
 	if [[ -f $item ]]; then
 
 		# Temporary copy the zip-file into the container
-		mkdir -p "$wp/.mkwp"
-		cp $item "$wp/.mkwp/"
+		mkdir -p "$wp_path/.mkwp"
+		cp $item "$wp_path/.mkwp/"
 		item=".mkwp/$(basename $item)"
 
 		# Wait up to 15 seconds for mutagen to sync
@@ -384,7 +396,7 @@ install() {
 		local type=${1%s}
 		local -n items=${1//-/_} # Changes mu-plugins to mu_plugins
 		
-		cd "$wp/wp-content/${type}s"
+		cd "$wp_path/wp-content/${type}s"
 
 		for item in ${items[@]}; do
 			case "$item" in
@@ -441,6 +453,29 @@ setup_cron() {
 
 }
 
+# Usage: resolve_wp_version <version>
+# Resolves a possibly-partial WordPress version (e.g. 6, 6.9 or 6.9.4) to the
+# highest released version that matches, by querying the WordPress.org API.
+# Echoes the resolved version, or aborts if the fetch fails or nothing matches.
+resolve_wp_version() {
+
+	# Turn the requested version into a boundary-aware pattern so that, for
+	# example, 6 matches 6.9.4 but not 16, and 6.9 matches 6.9.4 but not 6.90.
+	local prefix="${1//./\\.}"
+
+	# Fetch the list of released versions from wordpress.org
+	local versions
+	versions=$(curl -sf https://api.wordpress.org/core/stable-check/1.0/) || die "Couldn't fetch the list of WordPress versions from wordpress.org" 18
+
+	# Keep the released versions matching the prefix and pick the highest one
+	local resolved
+	resolved=$(grep -oE '"[0-9]+\.[0-9]+(\.[0-9]+)?"' <<< "$versions" | tr -d '"' | grep -E "^${prefix}(\.|\$)" | sort -V | tail -1)
+	[[ "$resolved" ]] || die "No released WordPress version matches: $1" 19
+
+	echo "$resolved"
+
+}
+
 # =============================================================================
 
 
@@ -478,6 +513,7 @@ set -u
 	plugins=
 	mu_plugins=
 	php=
+	wp=
 	config=
 
 	# Parse the argument list from the command line
@@ -495,8 +531,8 @@ set -u
 	password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
 	language=${language:=en_US}
 	themes=${themes:=}
-	php=${php:=8.3}
-	wp="$directory/$name"
+	php=${php:=8.5}
+	wp_path="$directory/$name"
 	url="https://$name.ddev.site"
 
 	# Echo all parameters used by the script if debugging.
@@ -512,14 +548,15 @@ set -u
 		echo "plugins=$plugins"
 		echo "mu_plugins=$mu_plugins"
 		echo "php=$php"
-		echo "config=$config"
 		echo "wp=$wp"
+		echo "config=$config"
+		echo "wp_path=$wp_path"
 		echo "url=$url"
 	fi
 
 	# Validate options
 	ddev_projects=$(ddev list -j)
-	if echo $ddev_projects | grep -q "\"approot\":\"$wp\""; then die "A DDEV project already exists in the directory $wp." 15; fi
+	if echo $ddev_projects | grep -q "\"approot\":\"$wp_path\""; then die "A DDEV project already exists in the directory $wp_path." 15; fi
 	if echo $ddev_projects | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
 	[[ "$name" ]] || die "Error: Missing name of the project." 3
 	[[ "$name" =~ ^[[:alpha:]]([[:alpha:]]|[[:digit:]]|[-.])*$ ]] || die "Invalid name" 11
@@ -527,16 +564,17 @@ set -u
 	[[ "$email" =~ ^([A-Za-z]+[A-Za-z0-9]*((\.|\-|\_)?[A-Za-z]+[A-Za-z0-9]*){1,})@(([A-Za-z]+[A-Za-z0-9]*)+((\.|\-|\_)?([A-Za-z]+[A-Za-z0-9]*)+){1,})+\.([A-Za-z]{2,})+ ]] || die "Invalid email address: $email" 6
 	[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7
 	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
-	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-3]$ ]] || die "Invalid PHP version: $php" 9
-	[[ -e "$wp" ]] && die "$wp already exists $wp" 13
-	[[ -d $directory ]] && [[ -w $directory ]] || die "Cannot create $wp" 14
+	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-5]$ ]] || die "Invalid PHP version: $php" 9
+	[[ -z "$wp" || "$wp" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "Invalid WordPress version: $wp" 17
+	[[ -e "$wp_path" ]] && die "$wp_path already exists $wp_path" 13
+	[[ -d $directory ]] && [[ -w $directory ]] || die "Cannot create $wp_path" 14
 
 	# Chek that DDEV is working
 	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
 
 	# Create and enter the WordPress root directory.
-	mkdir -p $wp
-	cd $wp
+	mkdir -p $wp_path
+	cd $wp_path
 
 	# Create local php.ini with infinite timeout. Don't use on production!
 	mkdir -p ".ddev/php"
@@ -565,8 +603,21 @@ set -u
 	ddev config --project-type=wordpress --disable-settings-management --php-version=$php --performance-mode=mutagen
 	ddev start
 
-	# Download WordPress
-	ddev wp core download --locale=$language
+	# Download WordPress. When a version is requested, derive the core
+	# auto-update policy from how precisely it was given, resolve any omitted
+	# parts to the highest available release, and download that exact version.
+	if [[ "$wp" ]]; then
+		case "$wp" in
+			*.*.*) wp_auto_update=false ;;      # exact x.y.z: pin, no auto-updates
+			*)     wp_auto_update="'minor'" ;;  # x or x.y: only patch (.z) auto-updates
+		esac
+		wp=$(resolve_wp_version "$wp") || exit $?
+		echo "Installing WordPress $wp"
+		ddev wp core download --version="$wp" --locale=$language
+	else
+		wp_auto_update="'minor'"
+		ddev wp core download --locale=$language
+	fi
 
 	# Wait for Mutagen to sync.
 	echo -n "Wait for Mutagen to sync "
@@ -582,7 +633,7 @@ set -u
 	define( 'WP_MEMORY_LIMIT', '64M' );
 	define( 'WP_MAX_MEMORY_LIMIT', '256M' );
 	define( 'DISALLOW_FILE_EDIT', true );
-	define( 'WP_AUTO_UPDATE_CORE', 'minor' );
+	define( 'WP_AUTO_UPDATE_CORE', ${wp_auto_update} );
 	define( 'MEDIA_TRASH', true );
 	define( 'EMPTY_TRASH_DAYS', '90' );
 	define( 'WP_DEBUG', true );
