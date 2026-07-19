@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.8.0 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.8.1 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
 # The version of mkwp, shown in the help output. Must match the header above.
-readonly mkwp_version='1.8.0'
+readonly mkwp_version='1.8.1'
 
 help() {
 

@@ -6,6 +6,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.1] – 2026-07-20
+
 ### Fixed
 
 - `ddev config` now passes `--project-name=NAME`, so a `--dirname` that diverges from NAME no longer breaks the scaffold. Previously DDEV registered the project under the directory's name while wp-config.php still hardcoded the database host to `ddev-NAME-db`, so the site died with a database-connection error before it was created.
@@ -98,7 +100,8 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.1
 [1.8.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.0
 [1.7.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.7.0
 [1.6.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.6.0
