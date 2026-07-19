@@ -3,7 +3,7 @@ Bash script to quickly and easily create local WordPress sites.
 
 ```
 NAME
-	mkwp 1.7.0 - make wordpress
+	mkwp 1.8.0 - make wordpress
 
 SYNOPSIS
 	mkwp [OPTION]... NAME
@@ -44,7 +44,7 @@ OPTIONS
 		The home directory of the website. If omitted, current
 		directory will be used as home directory.
 
-	-n <dirname>
+	-D <dirname>
 	--dirname=<dirname>
 		The name of the directory the site is created in, underneath the
 		home directory. If omitted, [NAME] will be used.

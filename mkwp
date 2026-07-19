@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.7.0 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.8.0 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
 # The version of mkwp, shown in the help output. Must match the header above.
-readonly mkwp_version='1.7.0'
+readonly mkwp_version='1.8.0'
 
 help() {
 
@@ -50,7 +50,7 @@ help() {
 		The home directory of the website. If omitted, current
 		directory will be used as home directory.
 
-	\e[1m-n <dirname>\e[0m
+	\e[1m-D <dirname>\e[0m
 	\e[1m--dirname=<dirname>\e[0m
 		The name of the directory the site is created in, underneath the
 		home directory. If omitted, [NAME] will be used.
@@ -186,7 +186,7 @@ handle_arguments() {
 			-h | --help) help; die ;;
 			-t | --title=*) extract_argument title "$@"; shift $shift_n ;;
 			-d | --directory=*) extract_argument directory "$@"; shift $shift_n ;;
-			-n | --dirname=*) extract_argument dirname "$@"; shift $shift_n ;;
+			-D | --dirname=*) extract_argument dirname "$@"; shift $shift_n ;;
 			-m | --email=*) extract_argument email "$@"; shift $shift_n ;;
 			-u | --user=*) extract_argument user "$@"; shift $shift_n ;;
 			-p | --password=*) extract_argument password "$@"; shift $shift_n ;;
@@ -652,7 +652,7 @@ trap 'die "mkwp failed with exit code $? at line $LINENO: $BASH_COMMAND" $?' ERR
 	if echo "$ddev_projects" | grep -q "\"approot\":\"$wp_path\""; then die "A DDEV project already exists in the directory $wp_path." 15; fi
 	if echo "$ddev_projects" | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
 	[[ "$name" ]] || die "Error: Missing name of the project." 3
-	[[ "$name" =~ ^[[:alpha:]]([[:alnum:]-]*[[:alnum:]])?$ ]] || die "Invalid name: $name. A DDEV project name must start with a letter and may otherwise only contain letters, digits and hyphens. Use -n/--dirname to name the site directory freely." 11
+	[[ "$name" =~ ^[[:alpha:]]([[:alnum:]-]*[[:alnum:]])?$ ]] || die "Invalid name: $name. A DDEV project name must start with a letter and may otherwise only contain letters, digits and hyphens. Use -D/--dirname to name the site directory freely." 11
 	[[ "$dirname" =~ ^[^/]+$ && "$dirname" != "." && "$dirname" != ".." ]] || die "Invalid dirname: $dirname" 20
 	[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
 	[[ "$email" =~ ^[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}$ ]] || die "Invalid email address: $email" 6
