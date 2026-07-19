@@ -6,6 +6,18 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] – 2026-07-19
+
+### Added
+
+- New `-n` / `--dirname` option to name the directory the site is created
+  in, underneath the home directory (`-d` / `--directory`), independently
+  of NAME. This lets the directory reflect e.g. a full production host
+  (`www.example.com`) while the DDEV project name and local domain remain
+  a plain hostname label. When omitted, the directory is named after NAME
+  as before. The option is also accepted in configuration files, with the
+  same precedence as the other options.
+
 ## [1.4.1] - 2026-06-11
 
 ### Fixed
@@ -42,6 +54,7 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.5.0
 [1.4.1]: https://github.com/Kntnt/mkwp/releases/tag/v1.4.1
 [1.4.0]: https://github.com/Kntnt/mkwp/releases/tag/1.4.0

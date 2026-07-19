@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.4.1 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.5.0 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
 
@@ -46,6 +46,11 @@ help() {
 	\e[1m--directory=<path>\e[0m
 		The home directory of the website. If omitted, current
 		directory will be used as home directory.
+
+	\e[1m-n <dirname>\e[0m
+	\e[1m--dirname=<dirname>\e[0m
+		The name of the directory the site is created in, underneath the
+		home directory. If omitted, [NAME] will be used.
 
 	\e[1m-m <email>\e[0m
 	\e[1m--email=<email>\e[0m
@@ -169,6 +174,7 @@ handle_arguments() {
 			-h | --help) help; die ;;
 			-t | --title=*) extract_argument title $@; shift $? ;;
 			-d | --directory=*) extract_argument directory $@; shift $? ;;
+			-n | --dirname=*) extract_argument dirname $@; shift $? ;;
 			-m | --email=*) extract_argument email $@; shift $? ;;
 			-u | --user=*) extract_argument user $@; shift $? ;;
 			-p | --password=*) extract_argument password $@; shift $? ;;
@@ -216,7 +222,7 @@ handle_config_files() {
 
 
 		# Validate the line structure
-		if [[ $line =~ ^(name|title|directory|email|user|password|language|themes|plugins|mu-plugins|php|wp)[[:space:]]*=[[:space:]]*(.*) ]]; then
+		if [[ $line =~ ^(name|title|directory|dirname|email|user|password|language|themes|plugins|mu-plugins|php|wp)[[:space:]]*=[[:space:]]*(.*) ]]; then
 
 			# Extract keyword and value
 			local key="${BASH_REMATCH[1]//-/_}"
@@ -505,6 +511,7 @@ set -u
 	name=
 	title=
 	directory=
+	dirname=
 	email=
 	user=
 	password=
@@ -526,13 +533,14 @@ set -u
 	name=${name,,}
 	title=${title:=${name^}}
 	directory=${directory:=$(pwd)}
+	dirname=${dirname:=$name}
 	email=${email:=$(whoami)@$(hostname)}
 	user=${user:=${email%@*}}
 	password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
 	language=${language:=en_US}
 	themes=${themes:=}
 	php=${php:=8.5}
-	wp_path="$directory/$name"
+	wp_path="$directory/$dirname"
 	url="https://$name.ddev.site"
 
 	# Echo all parameters used by the script if debugging.
@@ -540,6 +548,7 @@ set -u
 		echo "name=$name"
 		echo "title=$title"
 		echo "directory=$directory"
+		echo "dirname=$dirname"
 		echo "email=$email"
 		echo "user=$user"
 		echo "password=$password"
@@ -560,6 +569,7 @@ set -u
 	if echo $ddev_projects | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
 	[[ "$name" ]] || die "Error: Missing name of the project." 3
 	[[ "$name" =~ ^[[:alpha:]]([[:alpha:]]|[[:digit:]]|[-.])*$ ]] || die "Invalid name" 11
+	[[ "$dirname" =~ ^[^/]+$ && "$dirname" != "." && "$dirname" != ".." ]] || die "Invalid dirname: $dirname" 20
 	[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
 	[[ "$email" =~ ^([A-Za-z]+[A-Za-z0-9]*((\.|\-|\_)?[A-Za-z]+[A-Za-z0-9]*){1,})@(([A-Za-z]+[A-Za-z0-9]*)+((\.|\-|\_)?([A-Za-z]+[A-Za-z0-9]*)+){1,})+\.([A-Za-z]{2,})+ ]] || die "Invalid email address: $email" 6
 	[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7

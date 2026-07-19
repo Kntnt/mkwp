@@ -43,6 +43,11 @@ OPTIONS
 		The home directory of the website. If omitted, current
 		directory will be used as home directory.
 
+	-n <dirname>
+	--dirname=<dirname>
+		The name of the directory the site is created in, underneath the
+		home directory. If omitted, [NAME] will be used.
+
 	-m <email>
 	--email=<email>
 		The email address of the first user created in WordPress. If
