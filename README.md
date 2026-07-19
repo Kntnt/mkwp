@@ -3,7 +3,7 @@ Bash script to quickly and easily create local WordPress sites.
 
 ```
 NAME
-	mkwp - make wordpress
+	mkwp 1.7.0 - make wordpress
 
 SYNOPSIS
 	mkwp [OPTION]... NAME
@@ -136,3 +136,14 @@ DEPENDENCY
 	This command requires that a Docker provider is installed and running
 	on your system and that DDEV is properly installed and in your path.
 ```
+
+## Release configuration
+
+The version number lives in these places, which must stay in sync:
+
+- `mkwp` — the `# mkwp X.Y.Z by …` header comment at the top of the script.
+- `mkwp` — the `readonly mkwp_version='X.Y.Z'` constant.
+- `README.md` — the `mkwp X.Y.Z - make wordpress` line in the embedded help text above.
+- `CHANGELOG.md` — the latest release heading.
+
+There is no archive build; releases ship release notes only.

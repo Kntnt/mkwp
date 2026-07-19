@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.6.0 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.7.0 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
+# The version of mkwp, shown in the help output. Must match the header above.
+readonly mkwp_version='1.7.0'
 
 help() {
 
 	echo -e "NAME
-	mkwp - make wordpress
+	mkwp ${mkwp_version} - make wordpress
 
 \e[1mSYNOPSIS\e[0m
 	\e[1mmkwp\e[0m [OPTION]... NAME

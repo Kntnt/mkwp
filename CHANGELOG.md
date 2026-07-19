@@ -6,6 +6,12 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] – 2026-07-19
+
+### Added
+
+- The help output (`-h` / `--help`) now shows the mkwp version number on its first line.
+
 ## [1.6.0] – 2026-07-19
 
 ### Added
@@ -82,7 +88,8 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.7.0
 [1.6.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.5.0
 [1.4.1]: https://github.com/Kntnt/mkwp/releases/tag/v1.4.1
