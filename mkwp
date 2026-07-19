@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.5.0 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.6.0 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
 
@@ -11,6 +11,7 @@ help() {
 
 \e[1mSYNOPSIS\e[0m
 	\e[1mmkwp\e[0m [OPTION]... NAME
+	\e[1mmkwp\e[0m \e[1m--destroy\e[0m NAME
 
 \e[1mDESCRIPTION\e[0m
 	Makes a local WordPress site with the domain \e[1mname.ddev.site\e[0m where
@@ -72,7 +73,8 @@ help() {
 	\e[1m-l <locale>\e[0m
 	\e[1m--language=<locale>\e[0m
 		The language of the WordPress site. If omitted, en_US will be
-		used.
+		used. For a number of well-known locales, the site timezone is
+		set accordingly (e.g. Europe/Stockholm for sv_SE).
 
 	\e[1m-T <themes>\e[0m
 	\e[1m--themes=<themes>\e[0m
@@ -112,6 +114,19 @@ help() {
 		<major>.<minor>.<patch> disables auto-updates, while <major> or
 		<major>.<minor> enables patch-level updates only.
 
+	\e[1m-R\e[0m
+	\e[1m--redis\e[0m
+		Adds a Redis service to the site and enables it as WordPress
+		object cache backend: the Redis Object Cache plugin is
+		installed and activated, and its object-cache.php drop-in is
+		enabled. In a configuration file, use \e[1mredis = true\e[0m.
+
+	\e[1m--destroy\e[0m
+		Destroys the site [NAME]: deletes the DDEV project, including
+		its database, and removes the site directory from the file
+		system. Asks for confirmation before doing so. All other
+		options are ignored.
+
 	\e[1m-c <file>\e[0m
 	\e[1m--config=<file>\e[0m
 		Reads configuration from a file with the path <file>.
@@ -127,102 +142,105 @@ help() {
 
 }
 
-# Usage: die <message> <satus>
+# Usage: die <message> <status>
 # Echos the <message> and exit with the status code <status>
 die() {
 	echo -e "\033[0;31m${1:-}\033[0m" 1>&2
 	exit "${2:-0}"
 }
 
-# Usage: extract_argument <variable> <args>
-# Validates that <args> starts with a short format flag (e.g. -P 8.3) or
-# long format flag (e.g. --php=8.3) and then creates a global variable
-# named <variabl> that is assigned the value following the flag (e.g. 8.3).
-# The status code indicates whether 1 or 2 arguments from <args> have been
-# consumed. Status codes other than 1 and 2 indicate errors. This solution
-# can be said to be a hack, but is preferred to echoing the response, as
-# echoing would require the use of command substitution in the calling code,
-# making error handling messy as die (which calls exit) would only terminate
-# the subprocess but not the calling process.
+# Usage: extract_argument <variable> <args>...
+# Validates that <args> starts with a short format flag followed by a value
+# (e.g. -V 8.3) or a long format flag with an embedded value (e.g. --php=8.3),
+# assigns the value to the global variable named <variable>, and sets the
+# global variable shift_n to the number of arguments consumed (1 or 2).
 extract_argument() {
 
 	if [[ "$2" =~ ^--[^=]+=(.+)$ ]]; then # Long flag format, e.g. --php=8.3
 
 		declare -g "$1"="${BASH_REMATCH[1]}"
-		return 1
+		shift_n=1
 
-	elif [[ "$2" =~ ^-[^-]$ ]]; then # Short flag format, e.g. -P 8.3
+	elif [[ "$2" =~ ^-[^-]$ && $# -ge 3 ]]; then # Short flag format, e.g. -V 8.3
 
 		declare -g "$1"="$3"
-		return 2
+		shift_n=2
 
 	else
 
-		die "Error: Missing option for $1" 12
+		die "Error: Missing option for $2" 12
 
 	fi
 
 }
 
-# Usage: handle_arguments <args>
-# Pars <args>, which is expected to be the argumewnt list from the command
-# line, and creating corresponding variables containing options.
+# Usage: handle_arguments <args>...
+# Parses <args>, which is expected to be the argument list from the command
+# line, and creates corresponding variables containing options.
 handle_arguments() {
 
-	while [[ $# > 0 ]]; do
+	while [[ $# -gt 0 ]]; do
 		case $1 in
 			-h | --help) help; die ;;
-			-t | --title=*) extract_argument title $@; shift $? ;;
-			-d | --directory=*) extract_argument directory $@; shift $? ;;
-			-n | --dirname=*) extract_argument dirname $@; shift $? ;;
-			-m | --email=*) extract_argument email $@; shift $? ;;
-			-u | --user=*) extract_argument user $@; shift $? ;;
-			-p | --password=*) extract_argument password $@; shift $? ;;
-			-l | --language=*) extract_argument language $@; shift $? ;;
-			-T | --themes=*) extract_argument themes $@; shift $? ;;
-			-P | --plugins=*) extract_argument plugins $@; shift $? ;;
-			-M | --mu-plugins=*) extract_argument mu_plugins $@; shift $? ;;
-			-V | --php=*) extract_argument php $@; shift $? ;;
-			-W | --wp=*) extract_argument wp $@; shift $? ;;
-			-c | --config=*) extract_argument config $@; shift $? ;;
-			*) [ -z "$name" ] && name="$1" && shift || die "\033[0;31mError: Invalid flag: $1\033[0m" 2 ;;
+			-t | --title=*) extract_argument title "$@"; shift $shift_n ;;
+			-d | --directory=*) extract_argument directory "$@"; shift $shift_n ;;
+			-n | --dirname=*) extract_argument dirname "$@"; shift $shift_n ;;
+			-m | --email=*) extract_argument email "$@"; shift $shift_n ;;
+			-u | --user=*) extract_argument user "$@"; shift $shift_n ;;
+			-p | --password=*) extract_argument password "$@"; shift $shift_n ;;
+			-l | --language=*) extract_argument language "$@"; shift $shift_n ;;
+			-T | --themes=*) extract_argument themes "$@"; shift $shift_n ;;
+			-P | --plugins=*) extract_argument plugins "$@"; shift $shift_n ;;
+			-M | --mu-plugins=*) extract_argument mu_plugins "$@"; shift $shift_n ;;
+			-V | --php=*) extract_argument php "$@"; shift $shift_n ;;
+			-W | --wp=*) extract_argument wp "$@"; shift $shift_n ;;
+			-R | --redis) redis=true; shift ;;
+			--destroy) destroy=true; shift ;;
+			-c | --config=*) extract_argument config "$@"; shift $shift_n ;;
+			*) if [[ -z "$name" ]]; then name="$1"; shift; else die "Error: Invalid flag: $1" 2; fi ;;
 		esac
 	done
 
-	[[ -z "$name" ]] && die "The required argument NAME is missing. See \033[1mmkwp -h\033[22m for more information." 5
+	[[ -n "$name" ]] || die "The required argument NAME is missing. See \033[1mmkwp -h\033[22m for more information." 5
 
 }
 
 # Usage: handle_config_files
+# Reads options from the configuration file given with -c/--config, if any,
+# and from ~/.mkwp, without overriding options already set on the command line.
 handle_config_files() {
 
 	# Create a list of files to read configuration from
 	local files=()
 
 	# Add config file to the list of configuration files if it exists and is readable
-	if [[  $config ]]; then # Config file is supplied
-
+	if [[ $config ]]; then
 
 		# Use /dev/stdin if config file is -
-		[[ "$config" = "-" ]] && config="/dev/stdin"
+		if [[ "$config" == "-" ]]; then
+			config="/dev/stdin"
+		fi
 
 		# Validate config file
-		touch $config &> /dev/null && [[ -r $config ]] || die "Invalid path to config file" 10
+		[[ -r $config ]] || die "Invalid path to config file" 10
 
 		# Add the config file to the list of files to read configuration from
-		files+=($config)
+		files+=("$config")
 
 	fi
 
-	# Add ~/.mkwp file to the list of configuration files if is readable. Create ~/.mkwp if it doesn't exist.
-	touch ~/.mkwp &> /dev/null && [[ -r ~/.mkwp ]] && files+=(~/.mkwp) || die "Couldn't create ~/.mkwp" 12
+	# Add ~/.mkwp file to the list of configuration files. Create ~/.mkwp if it doesn't exist.
+	if [[ ! -e ~/.mkwp ]]; then
+		touch ~/.mkwp || die "Couldn't create ~/.mkwp" 12
+	fi
+	[[ -r ~/.mkwp ]] || die "Couldn't read ~/.mkwp" 12
+	files+=(~/.mkwp)
 
 	# Read config files
-	while IFS= read -r line || [ "$line" ]; do
-
+	while IFS= read -r line || [[ "$line" ]]; do
 
 		# Validate the line structure
-		if [[ $line =~ ^(name|title|directory|dirname|email|user|password|language|themes|plugins|mu-plugins|php|wp)[[:space:]]*=[[:space:]]*(.*) ]]; then
+		if [[ $line =~ ^(name|title|directory|dirname|email|user|password|language|themes|plugins|mu-plugins|php|wp|redis)[[:space:]]*=[[:space:]]*(.*) ]]; then
 
 			# Extract keyword and value
 			local key="${BASH_REMATCH[1]//-/_}"
@@ -230,13 +248,15 @@ handle_config_files() {
 
 			# If the global variable named in $key is empty, assign it the
 			# value in $value. N.B. We know that $key contains a name of
-			# an already declared global variable, since all variables namnes
+			# an already declared global variable, since all variables names
 			# in the regex above are declared before this function is called.
-			[[ -z ${!key} ]] && eval "$key=$(printf "%q" "$value")"
+			if [[ -z ${!key} ]]; then
+				eval "$key=$(printf "%q" "$value")"
+			fi
 
 		fi
 
-	done < <(cat ${files[@]})
+	done < <(cat "${files[@]}")
 
 }
 
@@ -253,40 +273,44 @@ theme_to_activate() {
 		local theme=${1##*,}
 
 		# Echo the basename without the suffix
-		echo ${theme//+(*\/|.*)}
+		echo "${theme//+(*\/|.*)}"
 
 	)
 
 }
 
-# Usage: make_uniq_array <items>
+# Usage: make_unique_array <items>
 # When called, <items> should be a comma-separated list of items. After the
-# call, <items> contains an array where all items occur exactly once. Note that
-# the original order of <items> is not maintained.
-make_uniqe_array() {
+# call, <items> contains an array where all items occur exactly once, in the
+# order of their first occurrence.
+make_unique_array() {
 
-	# Uses name reference to refer to the original variable 
+	# Uses name reference to refer to the original variable, which holds a
+	# comma-separated string on entry and an array on return.
 	local -n arr=$1
 
 	# If the string is empty, set it to an empty array and return
+	# shellcheck disable=SC2128
 	if [[ -z "$arr" ]]; then
 		arr=()
 		return
 	fi
 
 	# Splits the string into an array at each comma
-	IFS=',' read -r -a tempArray <<< "$arr" 
+	local -a items
+	# shellcheck disable=SC2128
+	IFS=',' read -r -a items <<< "$arr"
 
-	# Declares an associative array to filter out duplicates
-	declare -A tempAssocArray 
-
-	# Adds each element from tempArray to tempAssocArray to eliminate duplicates
-	for element in "${tempArray[@]}"; do
-		tempAssocArray["$element"]=1
+	# Rebuild the array, keeping only the first occurrence of each item
+	local -A seen=()
+	local item
+	arr=()
+	for item in "${items[@]}"; do
+		if [[ -z "${seen[$item]:-}" ]]; then
+			seen[$item]=1
+			arr+=("$item")
+		fi
 	done
-
-	# Turns the associative array back into an indexed array without duplicates
-	arr=("${!tempAssocArray[@]}")
 
 }
 
@@ -299,17 +323,17 @@ make_uniqe_array() {
 download_latest_tag() {
 
 	(
-		
+
 		# Enable Bash extended globbing features
 		shopt -s extglob
 
 		# Store the first argument of the function in 'repo', which should be the repository URL
 		local repo=$1
-		
+
 		# Extract the repository name from the URL for use as the directory name
 		local name=${repo//+(*\/|.*)}
 
-		# The label of the tag or bransch to be checked out
+		# The label of the tag or branch to be checked out
 		local checkout=
 
 		# Create a new directory named after the repository and change into it
@@ -319,12 +343,13 @@ download_latest_tag() {
 		# Initialize a new Git repository and add a remote pointing to the original repository
 		git init
 		git remote add origin "$repo"
-		
+
 		# Fetch all tags from the remote repository, cleaning up any deleted references
 		git fetch --prune --tags
 
 		# Attempt to identify the latest tag in the remote repository
-		local tag=$(git rev-list --tags --max-count=1)
+		local tag
+		tag=$(git rev-list --tags --max-count=1)
 
 		# If a tag is found, convert the tag hash to its name and checkout the tag
 		if [[ -n $tag ]]; then
@@ -338,7 +363,8 @@ download_latest_tag() {
 		else
 
 			# Fetch the name of the default branch from the remote repository, ensuring output in English
-			local default_branch=$(LC_ALL=C git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+			local default_branch
+			default_branch=$(LC_ALL=C git remote show origin | sed -n '/HEAD branch/s/.*: //p')
 
 			# Fetch the latest state of the default branch and switch to it in a detached HEAD state
 			git fetch origin "$default_branch"
@@ -360,39 +386,31 @@ download_latest_tag() {
 }
 
 
-# Usage: wp_install <type> <item>
-# Call `wp <type> install <item>`` where <type> is `theme` or `plugin`, and
-# <item> is permissible slug, local path to a zip-file.
-wp_install() {
+# Usage: wp_install_zip <type> <path>
+# Installs a local zip file with the path <path> as a theme or plugin, where
+# <type> is `theme` or `plugin`. The file is temporarily copied into the
+# project so that WP-CLI inside the container can reach it.
+wp_install_zip() {
 
 	local type="$1"
 	local item="$2"
-	local remove=
 
-	# Deal with local path
-	if [[ -f $item ]]; then
+	# Temporarily copy the zip-file into the project and flush Mutagen so the
+	# copy is visible inside the container.
+	mkdir -p "$wp_path/.mkwp"
+	cp "$item" "$wp_path/.mkwp/"
+	item=".mkwp/$(basename "$item")"
+	ddev mutagen sync
 
-		# Temporary copy the zip-file into the container
-		mkdir -p "$wp_path/.mkwp"
-		cp $item "$wp_path/.mkwp/"
-		item=".mkwp/$(basename $item)"
-
-		# Wait up to 15 seconds for mutagen to sync
-		local count=0; while [[ $count -lt 15 && ! $(ddev exec ls $item &>/dev/null; echo $?) -eq 0 ]]; do sleep 1; ((count++)); done
-
-	fi
-
-	# Install
-	ddev wp $type install "$item"
-
-	# Remove temporary copy if exisiting.
+	# Install and remove the temporary copy.
+	ddev wp "$type" install "$item"
 	ddev exec rm -rf .mkwp
 
 }
 
 # Usage: install <list-name>
 # Install the items listed in the array variable with the name <list-name> into
-# a directory with the sama name placed underneath the directory `wp-content`.
+# a directory with the same name placed underneath the directory `wp-content`.
 # For the intended function, <list-name> should be `themes`, `plugins` or
 # `mu-plugins`.
 install() {
@@ -400,62 +418,28 @@ install() {
 	(
 
 		local type=${1%s}
+		# shellcheck disable=SC2178
 		local -n items=${1//-/_} # Changes mu-plugins to mu_plugins
-		
-		cd "$wp_path/wp-content/${type}s"
+		local -a slugs=()
 
-		for item in ${items[@]}; do
+		cd "$wp_path/wp-content/$1"
+
+		# Handle items that need special treatment one by one, and collect
+		# plain slugs and zip URLs for a single batched WP-CLI install.
+		for item in "${items[@]}"; do
 			case "$item" in
 				*.php) curl -OLf "$item" ;;
 				*.git) download_latest_tag "$item" ;;
-				*)     wp_install $type $item ;;
+				*)     if [[ -f "$item" ]]; then wp_install_zip "$type" "$item"; else slugs+=("$item"); fi ;;
 			esac
 		done
 
+		# Install all collected slugs and URLs in one WP-CLI call
+		if (( ${#slugs[@]} )); then
+			ddev wp "$type" install "${slugs[@]}"
+		fi
+
 	)
-
-}
-
-# Usage: setup_cron
-# Sets up WordPress cron to run via system cron every minute using WP-CLI.
-# Creates necessary DDEV configuration files and restarts DDEV to enable cron.
-setup_cron() {
-
-	echo "Setting up WordPress cron..."
-
-	# Get the current user (file owner)
-	local file_owner=$(whoami)
-
-	# Create web-build directory for Docker customizations
-	mkdir -p .ddev/web-build
-
-	# Create Dockerfile for cron setup
-	cat <<- EOT > .ddev/web-build/Dockerfile
-	# Copy the custom cron job definition for WordPress
-	COPY cron /etc/cron.d/wp
-
-	# Ensure correct permissions for the cron file
-	RUN chmod 0644 /etc/cron.d/wp
-	EOT
-
-	# Create cron job file with correct file owner
-	cat <<- EOT > .ddev/web-build/cron
-	# Run WordPress cron via WP-CLI every minute
-	* * * * * $file_owner /usr/local/bin/wp --path=/var/www/html cron event run --due-now >> /dev/null 2>&1
-	EOT
-
-	# Add post-start hook to config.yaml
-	sed -i '/#/,$d' .ddev/config.yaml
-	sed -i -e :a -e '/^\s*$/{$d;N;ba' -e '}' .ddev/config.yaml
-	cat <<- EOT >> .ddev/config.yaml
-	hooks:
-	    post-start:
-	        - exec: sudo service cron start
-	EOT
-
-	# Restart DDEV to apply cron configuration
-	echo "Restarting DDEV to enable cron..."
-	ddev restart
 
 }
 
@@ -475,10 +459,80 @@ resolve_wp_version() {
 
 	# Keep the released versions matching the prefix and pick the highest one
 	local resolved
-	resolved=$(grep -oE '"[0-9]+\.[0-9]+(\.[0-9]+)?"' <<< "$versions" | tr -d '"' | grep -E "^${prefix}(\.|\$)" | sort -V | tail -1)
+	resolved=$(grep -oE '"[0-9]+\.[0-9]+(\.[0-9]+)?"' <<< "$versions" | tr -d '"' | grep -E "^${prefix}(\.|\$)" | sort -V | tail -1 || true)
 	[[ "$resolved" ]] || die "No released WordPress version matches: $1" 19
 
 	echo "$resolved"
+
+}
+
+# Usage: timezone_from_locale <locale>
+# Echoes an IANA timezone matching the given WordPress locale, or nothing if
+# the locale has no well-known timezone mapping.
+timezone_from_locale() {
+
+	case "$1" in
+		sv_SE)         echo "Europe/Stockholm" ;;
+		da_DK)         echo "Europe/Copenhagen" ;;
+		nb_NO | nn_NO) echo "Europe/Oslo" ;;
+		fi)            echo "Europe/Helsinki" ;;
+		is_IS)         echo "Atlantic/Reykjavik" ;;
+		en_GB)         echo "Europe/London" ;;
+		ga)            echo "Europe/Dublin" ;;
+		de_DE)         echo "Europe/Berlin" ;;
+		de_AT)         echo "Europe/Vienna" ;;
+		de_CH)         echo "Europe/Zurich" ;;
+		fr_FR)         echo "Europe/Paris" ;;
+		fr_BE | nl_BE) echo "Europe/Brussels" ;;
+		nl_NL)         echo "Europe/Amsterdam" ;;
+		es_ES)         echo "Europe/Madrid" ;;
+		it_IT)         echo "Europe/Rome" ;;
+		pt_PT)         echo "Europe/Lisbon" ;;
+		pt_BR)         echo "America/Sao_Paulo" ;;
+		pl_PL)         echo "Europe/Warsaw" ;;
+		cs_CZ)         echo "Europe/Prague" ;;
+		sk_SK)         echo "Europe/Bratislava" ;;
+		hu_HU)         echo "Europe/Budapest" ;;
+		et)            echo "Europe/Tallinn" ;;
+		lv)            echo "Europe/Riga" ;;
+		lt_LT)         echo "Europe/Vilnius" ;;
+		el)            echo "Europe/Athens" ;;
+		ro_RO)         echo "Europe/Bucharest" ;;
+		bg_BG)         echo "Europe/Sofia" ;;
+		uk)            echo "Europe/Kyiv" ;;
+		tr_TR)         echo "Europe/Istanbul" ;;
+		ja)            echo "Asia/Tokyo" ;;
+		zh_CN)         echo "Asia/Shanghai" ;;
+		*)             echo "" ;;
+	esac
+
+}
+
+# Usage: destroy_site
+# Deletes the DDEV project named $name, including its database, and removes
+# the site directory from the file system. Asks for confirmation first.
+destroy_site() {
+
+	# Look up the project's root directory in DDEV's project registry. Keep
+	# stdin away from ddev, which otherwise consumes the confirmation input
+	# below when it is piped to the script.
+	local json approot
+	json=$(ddev describe "$name" -j 2> /dev/null < /dev/null) || die "No DDEV project named '$name' was found." 21
+	[[ $json =~ \"approot\":\"([^\"]+)\" ]] || die "Couldn't determine the directory of the project '$name'." 22
+	approot="${BASH_REMATCH[1]}"
+
+	# Require the user to retype the project name before destroying anything
+	echo -e "This will delete the DDEV project \e[1m$name\e[0m and remove the directory \e[1m$approot\e[0m."
+	local confirmation
+	read -r -p "Type the project name to confirm: " confirmation
+	[[ "$confirmation" == "$name" ]] || die "Aborted." 23
+
+	# Delete the DDEV project without keeping a snapshot, and remove the files
+	ddev delete --omit-snapshot --yes "$name"
+	rm -rf "$approot"
+
+	echo "The site '$name' has been destroyed."
+	exit 0
 
 }
 
@@ -490,18 +544,25 @@ resolve_wp_version() {
 # arguments or associated word lists after they are expanded and before they
 # are executed. The value of the PS4 variable is expanded and the resultant
 # value is printed before the command and its expanded arguments.
-[[ $MKWP_DEBUG ]] && set -x || MKWP_DEBUG=
+[[ ${MKWP_DEBUG:-} ]] && set -x || MKWP_DEBUG=
 
 # The return value of a pipeline is the value of the last (rightmost) command
 # to exit with a non-zero status, or zero if all commands in the pipeline exit
 # successfully.
 set -o pipefail
- 
+
 # Treat unset variables and parameters other than the special parameters ‘@’ or
 # ‘*’, or array variables subscripted with ‘@’ or ‘*’, as an error when
 # performing parameter expansion. An error message will be written to the
-# standard error, and a non-interactive shell will exit. 
+# standard error, and a non-interactive shell will exit.
 set -u
+
+# Exit immediately if a command fails, also inside functions and subshells
+# (-E makes the ERR trap inherited by them), and report what failed. Deliberate
+# aborts go through die, which is not affected since it is always invoked
+# behind || where errexit is suppressed.
+set -eE
+trap 'die "mkwp failed with exit code $? at line $LINENO: $BASH_COMMAND" $?' ERR
 
 # The main script
 (
@@ -521,30 +582,47 @@ set -u
 	mu_plugins=
 	php=
 	wp=
+	redis=
+	destroy=
 	config=
+	shift_n=
 
 	# Parse the argument list from the command line
 	handle_arguments "$@"
+
+	# Normalize the site name, which doubles as DDEV project name and domain
+	name=${name,,}
+
+	# In destroy mode, tear down the site and exit; nothing below applies
+	if [[ $destroy ]]; then
+		destroy_site
+	fi
 
 	# Parse config files
 	handle_config_files
 
 	# Tidy up, fill in default values and add some extra variables.
-	name=${name,,}
 	title=${title:=${name^}}
 	directory=${directory:=$(pwd)}
 	dirname=${dirname:=$name}
 	email=${email:=$(whoami)@$(hostname)}
 	user=${user:=${email%@*}}
-	password=${password:=$(tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16)}
+	password=${password:=$(LC_ALL=C tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16 || true)}
 	language=${language:=en_US}
 	themes=${themes:=}
 	php=${php:=8.5}
 	wp_path="$directory/$dirname"
 	url="https://$name.ddev.site"
 
+	# Normalize the redis option, which may come from a config file as text
+	case "${redis,,}" in
+		'' | false | no | 0) redis= ;;
+		true | yes | 1)      redis=true ;;
+		*)                   die "Invalid value for redis: $redis" 24 ;;
+	esac
+
 	# Echo all parameters used by the script if debugging.
-	if [[ $MKWP_DEBUG ]] ; then
+	if [[ $MKWP_DEBUG ]]; then
 		echo "name=$name"
 		echo "title=$title"
 		echo "directory=$directory"
@@ -558,36 +636,42 @@ set -u
 		echo "mu_plugins=$mu_plugins"
 		echo "php=$php"
 		echo "wp=$wp"
+		echo "redis=$redis"
 		echo "config=$config"
 		echo "wp_path=$wp_path"
 		echo "url=$url"
 	fi
 
+	# Check that DDEV is working
+	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
+
 	# Validate options
 	ddev_projects=$(ddev list -j)
-	if echo $ddev_projects | grep -q "\"approot\":\"$wp_path\""; then die "A DDEV project already exists in the directory $wp_path." 15; fi
-	if echo $ddev_projects | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
+	if echo "$ddev_projects" | grep -q "\"approot\":\"$wp_path\""; then die "A DDEV project already exists in the directory $wp_path." 15; fi
+	if echo "$ddev_projects" | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
 	[[ "$name" ]] || die "Error: Missing name of the project." 3
-	[[ "$name" =~ ^[[:alpha:]]([[:alpha:]]|[[:digit:]]|[-.])*$ ]] || die "Invalid name" 11
+	[[ "$name" =~ ^[[:alpha:]]([[:alnum:]-]*[[:alnum:]])?$ ]] || die "Invalid name: $name. A DDEV project name must start with a letter and may otherwise only contain letters, digits and hyphens. Use -n/--dirname to name the site directory freely." 11
 	[[ "$dirname" =~ ^[^/]+$ && "$dirname" != "." && "$dirname" != ".." ]] || die "Invalid dirname: $dirname" 20
 	[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
-	[[ "$email" =~ ^([A-Za-z]+[A-Za-z0-9]*((\.|\-|\_)?[A-Za-z]+[A-Za-z0-9]*){1,})@(([A-Za-z]+[A-Za-z0-9]*)+((\.|\-|\_)?([A-Za-z]+[A-Za-z0-9]*)+){1,})+\.([A-Za-z]{2,})+ ]] || die "Invalid email address: $email" 6
+	[[ "$email" =~ ^[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}$ ]] || die "Invalid email address: $email" 6
 	[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7
 	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
 	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-5]$ ]] || die "Invalid PHP version: $php" 9
 	[[ -z "$wp" || "$wp" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "Invalid WordPress version: $wp" 17
-	[[ -e "$wp_path" ]] && die "$wp_path already exists $wp_path" 13
-	[[ -d $directory ]] && [[ -w $directory ]] || die "Cannot create $wp_path" 14
-
-	# Chek that DDEV is working
-	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
+	[[ ! -e "$wp_path" ]] || die "$wp_path already exists" 13
+	[[ -d "$directory" && -w "$directory" ]] || die "Cannot create $wp_path" 14
 
 	# Create and enter the WordPress root directory.
-	mkdir -p $wp_path
-	cd $wp_path
+	mkdir -p "$wp_path"
+	cd "$wp_path"
+
+	# Configure the project before the first start, so that all customizations
+	# below — PHP settings, host commands, cron and the optional Redis service
+	# — are baked into the containers in a single start with no restart needed.
+	ddev config --project-type=wordpress --disable-settings-management --php-version="$php" --performance-mode=mutagen
 
 	# Create local php.ini with infinite timeout. Don't use on production!
-	mkdir -p ".ddev/php"
+	mkdir -p .ddev/php
 	cat <<- 'EOT' > .ddev/php/my-php.ini
 	[PHP]
 	; Don't do this in production :-p
@@ -608,14 +692,27 @@ set -u
 	#!/usr/bin/env bash
 	ddev exec --dir="$(ddev exec pwd)/$(realpath --relative-to=$DDEV_APPROOT $(pwd))" "$@"
 	EOT
+	chmod +x .ddev/commands/host/enter .ddev/commands/host/here
 
-	# Configure and start the Docker container
-	ddev config --project-type=wordpress --disable-settings-management --php-version=$php --performance-mode=mutagen
+	# Install the cron add-on and schedule WordPress cron to run every minute
+	ddev add-on get ddev/ddev-cron
+	cat <<- 'EOT' > .ddev/web-build/wp.cron
+	* * * * * IS_DDEV_PROJECT=true /usr/local/bin/wp --path=/var/www/html cron event run --due-now > /dev/null 2>&1
+	EOT
+
+	# Add a Redis service to be used as WordPress object cache backend
+	if [[ $redis ]]; then
+		ddev add-on get ddev/ddev-redis
+	fi
+
+	# Start the Docker containers
 	ddev start
 
-	# Download WordPress. When a version is requested, derive the core
-	# auto-update policy from how precisely it was given, resolve any omitted
-	# parts to the highest available release, and download that exact version.
+	# Download WordPress without the default themes and plugins, which saves
+	# both download and file synchronization time; themes to use are installed
+	# further down. When a version is requested, derive the core auto-update
+	# policy from how precisely it was given, resolve any omitted parts to the
+	# highest available release, and download that exact version.
 	if [[ "$wp" ]]; then
 		case "$wp" in
 			*.*.*) wp_auto_update=false ;;      # exact x.y.z: pin, no auto-updates
@@ -623,29 +720,25 @@ set -u
 		esac
 		wp=$(resolve_wp_version "$wp") || exit $?
 		echo "Installing WordPress $wp"
-		ddev wp core download --version="$wp" --locale=$language
+		ddev wp core download --version="$wp" --locale="$language" --skip-content
 	else
 		wp_auto_update="'minor'"
-		ddev wp core download --locale=$language
+		ddev wp core download --locale="$language" --skip-content
 	fi
 
-	# Wait for Mutagen to sync.
-	echo -n "Wait for Mutagen to sync "
-	while [ ! -f "index.php" ]; do
-		echo -n '.'
-		sleep 1;
-	done
-	echo -e "\nDone."
+	# Flush Mutagen so the downloaded files are visible on the host
+	ddev mutagen sync
 
 	# Create wp-config.php
 	ddev wp config create --dbname=db --dbuser=db --dbpass=db --dbhost="ddev-$name-db" --dbprefix=wp_ --dbcharset=utf8mb4 --dbcollate=utf8mb4_unicode_ci --locale="$language" --extra-php <<- EOT
+	define( 'WP_ENVIRONMENT_TYPE', 'local' );
 	define( 'DISABLE_WP_CRON', true );
-	define( 'WP_MEMORY_LIMIT', '64M' );
+	define( 'WP_MEMORY_LIMIT', '128M' );
 	define( 'WP_MAX_MEMORY_LIMIT', '256M' );
 	define( 'DISALLOW_FILE_EDIT', true );
 	define( 'WP_AUTO_UPDATE_CORE', ${wp_auto_update} );
 	define( 'MEDIA_TRASH', true );
-	define( 'EMPTY_TRASH_DAYS', '90' );
+	define( 'EMPTY_TRASH_DAYS', 90 );
 	define( 'WP_DEBUG', true );
 	define( 'WP_DEBUG_LOG', true );
 	define( 'WP_DEBUG_DISPLAY', false );
@@ -654,31 +747,33 @@ set -u
 	# Install WordPress
 	ddev wp core install --url="$url" --title="$title" --admin_user="$user" --admin_password="$password" --admin_email="$email" --skip-email
 
-	# If no theme is specified, default to the standard theme. Filter to a
-	# valid theme slug so a PHP deprecation notice that some PHP/wp-cli
-	# versions print to stdout cannot be mistaken for the theme name.
+	# Use pretty permalinks instead of the default plain ones
+	ddev wp rewrite structure '/%postname%/'
+
+	# Set the site timezone when one can be derived from the language
+	timezone=$(timezone_from_locale "$language")
+	if [[ $timezone ]]; then
+		ddev wp option update timezone_string "$timezone"
+	fi
+
+	# If no theme is specified, default to WordPress's current default theme,
+	# whose slug is declared among core's default constants.
 	if [[ -z "$themes" ]]; then
-		themes=$(ddev wp theme list --field=name 2> /dev/null | grep -Em1 '^[A-Za-z0-9._-]+$')
+		themes=$(sed -n "s/.*'WP_DEFAULT_THEME', '\([^']*\)'.*/\1/p" wp-includes/default-constants.php)
+		[[ "$themes" ]] || die "Couldn't determine the default theme." 25
 	fi
 
 	# Get the theme to activate
-	theme=$(theme_to_activate $themes)
+	theme=$(theme_to_activate "$themes")
 
-	# Remove duplicates from list of themes and plugins and convert them to arrays.
-	# Note that the original order of the lists is not maintained.
-	make_uniqe_array themes
-	make_uniqe_array plugins
-	make_uniqe_array mu_plugins
+	# Remove duplicates from list of themes and plugins and convert them to
+	# arrays, keeping the original order.
+	make_unique_array themes
+	make_unique_array plugins
+	make_unique_array mu_plugins
 
 	# Create home for "must use" plugins
 	mkdir -p wp-content/mu-plugins/DISABLED
-
-	# Remove default themes and plugins
-	rm -rf wp-content/themes/* wp-content/plugins/*
-
-	# Add empty index.php file
-	cp wp-content/index.php wp-content/themes
-	cp wp-content/index.php wp-content/plugins
 	cp wp-content/index.php wp-content/mu-plugins
 
 	# Install themes and plugins
@@ -687,10 +782,16 @@ set -u
 	install mu-plugins
 
 	# Activate the last listed theme
-	ddev wp theme activate $theme
+	ddev wp theme activate "$theme"
 
-	# Setup system cron to run WordPress cron
-	setup_cron
+	# Enable Redis as object cache backend: install and activate the Redis
+	# Object Cache plugin, point it to DDEV's Redis service, and enable the
+	# object-cache.php drop-in.
+	if [[ $redis ]]; then
+		ddev wp plugin install redis-cache --activate
+		ddev wp config set WP_REDIS_HOST redis
+		ddev wp redis enable
+	fi
 
 	# Launch site
 	ddev launch
@@ -698,4 +799,6 @@ set -u
 	# Inform user.
 	echo -e "\e[1;30;103m\n\nYou should now see your new WordPress site in your browser.\n\nUsername: $user\npassword: $password\n\e[0m"
 
-) 
+# Propagate the subshell's exit status without triggering the ERR trap again
+# at the top level, which would repeat the already reported error.
+) || exit $?

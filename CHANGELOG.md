@@ -6,6 +6,34 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] – 2026-07-19
+
+### Added
+
+- New `-R` / `--redis` option (or `redis = true` in a configuration file) that adds a Redis service to the site via the official `ddev/ddev-redis` add-on and enables it as WordPress object cache backend: the Redis Object Cache plugin is installed and activated, `WP_REDIS_HOST` is set, and the `object-cache.php` drop-in is enabled.
+- New `--destroy` mode (`mkwp --destroy NAME`) that deletes the DDEV project, including its database, and removes the site directory, after asking for confirmation.
+- Pretty permalinks (`/%postname%/`) are enabled on the new site instead of WordPress's default plain permalinks.
+- The site timezone is set automatically for a number of well-known locales (e.g. `Europe/Stockholm` for `sv_SE`).
+- `WP_ENVIRONMENT_TYPE` is defined as `local` in `wp-config.php`.
+
+### Changed
+
+- The site is now fully provisioned in a single `ddev start`: all DDEV customizations (PHP settings, host commands, cron and the optional Redis service) are written before the first start, eliminating the `ddev restart` that previously followed the cron setup.
+- WordPress cron is now scheduled through the official `ddev/ddev-cron` add-on instead of a hand-rolled Dockerfile, cron file and post-start hook. This also removes the fragile `sed` editing of `.ddev/config.yaml`, which required GNU sed and broke on stock macOS.
+- WordPress core is downloaded with `--skip-content`, skipping the default themes and plugins that were previously downloaded, synced and then deleted. The default theme (when `-T` is omitted) is instead resolved from core's `WP_DEFAULT_THEME` constant and installed explicitly.
+- The waiting loops for Mutagen file synchronization were replaced by explicit `ddev mutagen sync` calls.
+- Themes and plugins given as wordpress.org slugs or zip URLs are now installed in a single WP-CLI call instead of one call per item.
+- Duplicate removal in the theme and plugin lists now preserves the original list order.
+- `WP_MEMORY_LIMIT` was raised from 64M to 128M.
+
+### Fixed
+
+- Option values containing spaces (e.g. `-t "My Test Site"`) were truncated at the first space due to missing quoting in the argument parser. Paths containing spaces broke the script for the same reason; all expansions are now properly quoted and the script passes shellcheck.
+- The script now aborts with an error message as soon as a step fails (`set -e` with an ERR trap), instead of continuing through the remaining steps and reporting success.
+- Validating the configuration file given with `-c` no longer touches it, which previously updated its modification time and could even create it.
+- The email validation no longer rejects valid addresses such as `user+tag@example.com`.
+- The NAME validation now matches what DDEV actually accepts as a project name — letters, digits and hyphens, starting with a letter — so a name like `www.example.com` is rejected early with a clear message pointing to `-n`/`--dirname`, instead of failing inside `ddev config`.
+
 ## [1.5.0] – 2026-07-19
 
 ### Added
@@ -54,7 +82,8 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.6.0
 [1.5.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.5.0
 [1.4.1]: https://github.com/Kntnt/mkwp/releases/tag/v1.4.1
 [1.4.0]: https://github.com/Kntnt/mkwp/releases/tag/1.4.0

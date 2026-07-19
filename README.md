@@ -7,6 +7,7 @@ NAME
 
 SYNOPSIS
 	mkwp [OPTION]... NAME
+	mkwp --destroy NAME
 
 DESCRIPTION
 	Makes a local WordPress site with the domain name.ddev.site where
@@ -68,7 +69,8 @@ OPTIONS
 	-l <locale>
 	--language=<locale>
 		The language of the WordPress site. If omitted, en_US will be
-		used.
+		used. For a number of well-known locales, the site timezone is
+		set accordingly (e.g. Europe/Stockholm for sv_SE).
 
 	-T <themes>
 	--themes=<themes>
@@ -107,6 +109,19 @@ OPTIONS
 		The core auto-update policy reflects the precision: a full
 		<major>.<minor>.<patch> disables auto-updates, while <major> or
 		<major>.<minor> enables patch-level updates only.
+
+	-R
+	--redis
+		Adds a Redis service to the site and enables it as WordPress
+		object cache backend: the Redis Object Cache plugin is
+		installed and activated, and its object-cache.php drop-in is
+		enabled. In a configuration file, use redis = true.
+
+	--destroy
+		Destroys the site [NAME]: deletes the DDEV project, including
+		its database, and removes the site directory from the file
+		system. Asks for confirmation before doing so. All other
+		options are ignored.
 
 	-c <file>
 	--config=<file>
