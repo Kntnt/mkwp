@@ -670,7 +670,7 @@ trap 'die "mkwp failed with exit code $? at line $LINENO: $BASH_COMMAND" $?' ERR
 	# Configure the project before the first start, so that all customizations
 	# below — PHP settings, host commands, cron and the optional Redis service
 	# — are baked into the containers in a single start with no restart needed.
-	ddev config --project-type=wordpress --disable-settings-management --php-version="$php" --performance-mode=mutagen
+	ddev config --project-name="$name" --project-type=wordpress --disable-settings-management --php-version="$php" --performance-mode=mutagen
 
 	# Create local php.ini with infinite timeout. Don't use on production!
 	mkdir -p .ddev/php

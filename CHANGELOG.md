@@ -6,6 +6,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `ddev config` now passes `--project-name=NAME`, so a `--dirname` that diverges from NAME no longer breaks the scaffold. Previously DDEV registered the project under the directory's name while wp-config.php still hardcoded the database host to `ddev-NAME-db`, so the site died with a database-connection error before it was created.
+
 ## [1.8.0] – 2026-07-19
 
 ### Changed
