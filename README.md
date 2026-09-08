@@ -3,7 +3,7 @@ Bash script to quickly and easily create local WordPress sites.
 
 ```
 NAME
-	mkwp 1.8.1 - make wordpress
+	mkwp 1.8.2 - make wordpress
 
 SYNOPSIS
 	mkwp [OPTION]... NAME

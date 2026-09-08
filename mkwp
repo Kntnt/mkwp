@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.8.1 by Thomas Barregren <thomas@kntnt.com>
+# mkwp 1.8.2 by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
 # The version of mkwp, shown in the help output. Must match the header above.
-readonly mkwp_version='1.8.1'
+readonly mkwp_version='1.8.2'
 
 help() {
 
@@ -566,8 +566,10 @@ set -u
 set -eE
 trap 'die "mkwp failed with exit code $? at line $LINENO: $BASH_COMMAND" $?' ERR
 
-# The main script
-(
+# The main script. Keep this as an ordinary function invocation: wrapping the
+# call in a conditional (`main || ...`) would make Bash ignore `set -e` for all
+# commands executed by the function.
+main() {
 
 	# Set options variables used by the script. Should another variable sneak into
 	# the script, it's an error and `set -u` aborts the execution.
@@ -710,6 +712,12 @@ trap 'die "mkwp failed with exit code $? at line $LINENO: $BASH_COMMAND" $?' ERR
 	# Start the Docker containers
 	ddev start
 
+	# Fail before installing WordPress if the requested Redis service is not
+	# reachable. This also catches an incomplete or unhealthy add-on install.
+	if [[ $redis ]]; then
+		[[ "$(ddev redis-cli ping)" == "PONG" ]] || die "Redis was requested but the DDEV Redis service is not reachable." 26
+	fi
+
 	# Download WordPress without the default themes and plugins, which saves
 	# both download and file synchronization time; themes to use are installed
 	# further down. When a version is requested, derive the core auto-update
@@ -801,6 +809,6 @@ trap 'die "mkwp failed with exit code $? at line $LINENO: $BASH_COMMAND" $?' ERR
 	# Inform user.
 	echo -e "\e[1;30;103m\n\nYou should now see your new WordPress site in your browser.\n\nUsername: $user\npassword: $password\n\e[0m"
 
-# Propagate the subshell's exit status without triggering the ERR trap again
-# at the top level, which would repeat the already reported error.
-) || exit $?
+}
+
+main "$@"

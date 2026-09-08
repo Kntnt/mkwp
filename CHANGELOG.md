@@ -6,6 +6,13 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.2] – 2026-09-08
+
+### Fixed
+
+- Provisioning now stops immediately when a command fails. The main flow was wrapped in a conditional subshell, which made Bash ignore `set -e` and allowed failures such as an unsuccessful Redis add-on installation to be hidden while the script continued and reported success.
+- When Redis is requested, its DDEV service must now answer `PONG` before WordPress installation begins, preventing sites from being configured with an unreachable Redis backend.
+
 ## [1.8.1] – 2026-07-20
 
 ### Fixed
@@ -100,7 +107,8 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.8.2...HEAD
+[1.8.2]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.2
 [1.8.1]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.1
 [1.8.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.0
 [1.7.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.7.0
