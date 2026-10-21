@@ -1,9 +1,27 @@
 # mkwp - make wordpress
 Bash script to quickly and easily create local WordPress sites.
 
+## Installation
+
+mkwp is a single file. Download it from the latest release into a directory on your `PATH`, such as `~/bin`, and make it executable:
+
+```bash
+mkdir -p ~/bin
+curl -fsSL https://github.com/Kntnt/mkwp/releases/latest/download/mkwp -o ~/bin/mkwp
+chmod +x ~/bin/mkwp
+```
+
+To update mkwp, run the same commands again. To install a particular version, put `download/v<version>` in place of `latest/download` in the link, as in `https://github.com/Kntnt/mkwp/releases/download/v1.9.0/mkwp`. The first line of `mkwp --help` shows the installed version.
+
+Install the file from a release, not from a clone of the repository. The version is written into the file when a release is built, so a copy of `mkwp` taken straight from the repository has none and calls itself `unreleased`. To build the file from a clone, run `bin/build-release-assets`: it writes `release-assets/mkwp`, with the version taken from git.
+
+mkwp needs a running Docker provider and [DDEV](https://ddev.com/) on your `PATH`.
+
+## Usage
+
 ```
 NAME
-	mkwp 1.8.2 - make wordpress
+	mkwp <version> - make wordpress
 
 SYNOPSIS
 	mkwp [OPTION]... NAME
@@ -137,13 +155,6 @@ DEPENDENCY
 	on your system and that DDEV is properly installed and in your path.
 ```
 
-## Release configuration
+## Releasing
 
-The version number lives in these places, which must stay in sync:
-
-- `mkwp` — the `# mkwp X.Y.Z by …` header comment at the top of the script.
-- `mkwp` — the `readonly mkwp_version='X.Y.Z'` constant.
-- `README.md` — the `mkwp X.Y.Z - make wordpress` line in the embedded help text above.
-- `CHANGELOG.md` — the latest release heading.
-
-There is no archive build; releases ship release notes only.
+`/release` tags the release, and `bin/build-release-assets` builds the `mkwp` it attaches: the script as committed at the tag, with the tag's version written into it. The repository keeps no version number anywhere else; the tag and `CHANGELOG.md` carry it.

@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+#
+# Builds release-assets/mkwp: the mkwp script as committed at HEAD, with its
+# version written in. The script in the repository carries no version, since
+# mkwp is installed as this one file and the version must travel inside it.
+#
+# Follows the release-assets convention /release relies on: an executable
+# bin/build-release-assets writes the finished files to release-assets/, and
+# the release attaches every file it finds there. Running it by hand builds the
+# same file. It never publishes anything.
+#
+#   - The file is built from the committed state at HEAD. Uncommitted changes
+#     are never included.
+#   - If HEAD carries a version tag (v1.2.3 or 1.2.3), that is the version.
+#     Otherwise it is what git describe makes of the nearest tag, such as
+#     1.8.1-3-gabc1234 for the third commit after v1.8.1.
+#
+# The asset name carries no version, so the latest release's file always has
+# the same download link.
+#
+# Exit codes:
+#   0  success
+#   1  usage error: unknown arguments
+#   2  a required tool is not on PATH
+#   3  build failure
+
+set -euo pipefail
+
+readonly EXIT_USAGE=1
+readonly EXIT_MISSING_TOOL=2
+readonly EXIT_FAILURE=3
+
+# The line in mkwp that receives the version. The build fails unless it occurs
+# exactly once.
+readonly VERSION_LINE="readonly mkwp_version='unreleased'"
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ASSETS_DIR="$REPO_DIR/release-assets"
+OUTPUT_FILE="$ASSETS_DIR/mkwp"
+
+# Print usage and exit with the given code (default 0): on stdout when asked
+# for, on stderr after a usage error.
+usage() {
+	local code="${1:-0}"
+	[[ "$code" -eq 0 ]] || exec >&2
+	cat <<HELP
+Usage:
+  bin/build-release-assets
+  bin/build-release-assets --help
+
+Builds release-assets/mkwp from the committed state at HEAD, with the version
+taken from git, and prints its path.
+HELP
+	exit "$code"
+}
+
+# Abort with a message on stderr, using the given exit code (default: build
+# failure).
+die() {
+	echo "Error: $1" >&2
+	exit "${2:-$EXIT_FAILURE}"
+}
+
+# Accept --help and nothing else.
+parse_args() {
+
+	if [[ $# -eq 0 ]]; then
+		return 0
+	fi
+
+	case "$1" in
+		--help | -h)
+			usage 0
+			;;
+		*)
+			echo "Error: Unknown argument: $1" >&2
+			echo >&2
+			usage "$EXIT_USAGE"
+			;;
+	esac
+
+}
+
+# Verify every tool the build needs is on PATH.
+require_tools() {
+
+	if ! command -v git &>/dev/null; then
+		echo "Missing required tools: git" >&2
+		exit "$EXIT_MISSING_TOOL"
+	fi
+
+}
+
+# Echo the version of HEAD, without the tag's v prefix.
+head_version() {
+
+	local described
+	described="$(git -C "$REPO_DIR" describe --tags --match 'v[0-9]*' --match '[0-9]*' HEAD 2>/dev/null)" \
+		|| die "No version tag is reachable from HEAD."
+	echo "${described#v}"
+
+}
+
+# Tell whoever builds by hand that uncommitted changes are not in the file.
+warn_uncommitted() {
+
+	if [[ -n "$(git -C "$REPO_DIR" status --porcelain --untracked-files=no)" ]]; then
+		echo "Note: uncommitted changes are not included; mkwp is built from HEAD." >&2
+	fi
+
+}
+
+# Write mkwp at HEAD to release-assets/, with the version line filled in.
+build() {
+
+	local version="$1" script line count=0 built=""
+
+	script="$(git -C "$REPO_DIR" show HEAD:mkwp)" || die "Cannot read mkwp at HEAD."
+
+	# Rebuild the script line by line, replacing the version line. Command
+	# substitution drops the final newline, so each line gets its own back.
+	while IFS= read -r line; do
+		if [[ "$line" == "$VERSION_LINE" ]]; then
+			line="readonly mkwp_version='${version}'"
+			count=$((count + 1))
+		fi
+		built+="$line"$'\n'
+	done <<<"$script"
+
+	[[ "$count" -eq 1 ]] || die "mkwp at HEAD has ${count} lines reading: ${VERSION_LINE}"
+
+	mkdir -p "$ASSETS_DIR"
+	printf '%s' "$built" >"$OUTPUT_FILE" || die "Cannot write ${OUTPUT_FILE}."
+	chmod 755 "$OUTPUT_FILE"
+
+}
+
+main() {
+
+	parse_args "$@"
+	require_tools
+
+	local version
+	version="$(head_version)"
+	warn_uncommitted
+	build "$version"
+
+	echo "Created: mkwp ${version} from $(git -C "$REPO_DIR" rev-parse --short HEAD)" >&2
+	echo "$OUTPUT_FILE"
+
+}
+
+main "$@"

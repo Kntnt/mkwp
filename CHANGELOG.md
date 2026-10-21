@@ -6,6 +6,14 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Each GitHub release carries the `mkwp` file itself, with its version written in, so mkwp is installed and updated with one download from the latest release. The README's new Installation section shows how.
+
+### Changed
+
+- A copy of `mkwp` taken straight from the repository calls itself `unreleased`. Only the file attached to a release carries a version number.
+
 ## [1.8.2] – 2026-09-08
 
 ### Fixed

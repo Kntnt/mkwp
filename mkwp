@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# mkwp 1.8.2 by Thomas Barregren <thomas@kntnt.com>
+# mkwp by Thomas Barregren <thomas@kntnt.com>
 # =============================================================================
 
-# The version of mkwp, shown in the help output. Must match the header above.
-readonly mkwp_version='1.8.2'
+# The version of mkwp, shown in the help output. bin/build-release-assets
+# writes the released version here in the copy each GitHub release carries; a
+# copy taken straight from the repository calls itself unreleased.
+readonly mkwp_version='unreleased'
 
 help() {
 

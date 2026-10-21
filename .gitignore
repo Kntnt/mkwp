@@ -15,3 +15,6 @@
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Build output
+/release-assets/
