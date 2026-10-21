@@ -6,6 +6,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.9.0] – 2026-10-21
+
 ### Added
 
 - Each GitHub release carries the `mkwp` file itself, with its version written in, so mkwp is installed and updated with one download from the latest release. The README's new Installation section shows how.
