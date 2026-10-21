@@ -117,7 +117,8 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.8.2...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.9.0
 [1.8.2]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.2
 [1.8.1]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.1
 [1.8.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.0
