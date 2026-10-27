@@ -33,6 +33,6 @@ test_rejects_an_argument_that_is_not_a_string() {
 test_rejects_an_empty_command() {
 	write_blueprint '{"wp_cli": [["rewrite", "flush"], []]}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 220 "Invalid blueprint $blueprint: .wp_cli[1] must not be empty"
+	assert_rejected 37 "Invalid blueprint $blueprint: .wp_cli[1] must not be empty"
 	assert_nothing_created
 }

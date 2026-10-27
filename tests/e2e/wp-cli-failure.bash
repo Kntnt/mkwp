@@ -32,7 +32,7 @@ setup_file() {
 }
 
 test_stops_with_a_message_that_names_the_failing_command() {
-	assert_equal 221 "$(< "$fixtures/status")"
+	assert_equal 38 "$(< "$fixtures/status")"
 	assert_equal "The WP-CLI command .wp_cli[1] in the blueprint $fixtures/blueprint.json failed with exit status 1: wp option get mkwp_no_such_option" "$(tail -n 1 "$fixtures/stderr")"
 }
 

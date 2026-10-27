@@ -470,7 +470,7 @@ check_blueprint() {
 				| "32 \($path | location) has no \"\($key)\"" ),
 			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
 		elif $type == "array" and $schema.nonempty and length == 0 then
-			"220 \($path | location) must not be empty"
+			"37 \($path | location) must not be empty"
 		elif $type == "array" then
 			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index])
 		else
@@ -1037,7 +1037,7 @@ run_wp_cli_commands() {
 		command=("${wp_cli_args[@]:offset:wp_cli_lengths[i]}")
 		offset=$(( offset + wp_cli_lengths[i] ))
 		printf -v shown ' %q' "${command[@]}"
-		ddev wp "${command[@]}" < /dev/null || die "The WP-CLI command .wp_cli[$i] in the blueprint $blueprint failed with exit status $?: wp$shown" 221
+		ddev wp "${command[@]}" < /dev/null || die "The WP-CLI command .wp_cli[$i] in the blueprint $blueprint failed with exit status $?: wp$shown" 38
 	done
 
 }
