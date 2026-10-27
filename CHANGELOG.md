@@ -10,9 +10,18 @@ uses [Semantic Versioning](https://semver.org/).
 
 - New `-B` / `--blueprint` option that builds a site from a blueprint: a JSON file that describes the site's title, language, PHP and WordPress versions and Redis setting, and the themes, plugins and mu-plugins to install. A theme or plugin comes from WordPress.org, a Git repository (including a private one over SSH), a URL or a zip file next to the blueprint, and is activated if it's marked with `"activate": true`. Options on the command line take precedence over the blueprint, and the blueprint over the configuration files. mkwp checks the whole blueprint, and every file it refers to, before it touches Docker and DDEV, and stops with an exit status of its own for each kind of error. A blueprint needs `jq`.
 - `blueprint.schema.json`, a JSON Schema for blueprints, lets an editor check and complete a blueprint.
+- A configuration file can name the blueprint to build sites from when none is given on the command line, as in `blueprint = ~/blueprints/default.json`. A path that starts with `~/` is in the home directory, and a relative path is relative to the configuration file's directory, or to the current directory when the configuration is read from standard input with `-c -`. A blueprint given with `--blueprint` is used before one named in the file given with `-c`, and that one before one named in `~/.mkwp`.
+- New `--no-blueprint` option that builds a site without a blueprint, even when a configuration file names one. The personal settings in the configuration files are still used.
 
 ### Changed
 
+- **Breaking:** A configuration file, `~/.mkwp` or the file given with `-c`, now holds only the personal settings `email`, `user`, `password` and `directory`, and `blueprint`. Every other key it could hold before stops mkwp, before Docker and DDEV are touched, with a message that names the key and says where it belongs, and so does any other line that is neither blank nor a comment starting with `#`; mkwp used to ignore such lines. The command line still takes precedence over the file given with `-c`, and that file over `~/.mkwp`. Move each removed key like this:
+  - `name`: give the site's name on the command line, as `mkwp my-site`. It never worked in a configuration file.
+  - `dirname`: give it on the command line, so `dirname = my-site` becomes `-D my-site` or `--dirname=my-site`.
+  - `title`, `language`, `php`, `wp` and `redis`: put them in a blueprint's `site`, so `title = My Site`, `language = sv_SE`, `php = 8.4`, `wp = 6.8` and `redis = true` become `"site": {"title": "My Site", "language": "sv_SE", "php": "8.4", "wp": "6.8", "redis": true}`. `redis` is `true` or `false` there, not `yes`, `no`, `1` or `0`.
+  - `themes`, `plugins` and `mu-plugins`: put them in a blueprint's `themes`, `plugins` and `mu_plugins`, as arrays, so `plugins = query-monitor,https://example.com/my-plugin.zip` becomes `"plugins": ["query-monitor", "https://example.com/my-plugin.zip"]`. The last theme is still the one activated, unless another is marked with `"activate": true`. A local zip file is given by a path that starts with `./`, `../`, `/` or `~/`, and a relative path is relative to the blueprint.
+
+  To keep these settings for every site, as `~/.mkwp` gave them before, put them in a blueprint and name it in `~/.mkwp` with `blueprint = ~/blueprints/default.json`. Each of them can still be given as an option on the command line too.
 - Invalid options are now reported before Docker and DDEV are checked, so a mistyped name, email address, password or other option is reported even when Docker isn't running.
 
 ### Fixed
