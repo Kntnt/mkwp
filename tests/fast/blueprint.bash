@@ -209,20 +209,15 @@ test_rejects_a_local_source_that_can_not_be_read() {
 	assert_nothing_created
 }
 
-test_rejects_a_local_source_that_is_not_a_zip_file() {
-	write_blueprint '{"plugins": ["./plugin.zip"]}'
-	echo 'Not a zip file' > "$sandbox/blueprint/plugin.zip"
-	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 35 "Invalid blueprint $blueprint: \"./plugin.zip\" in .plugins[0] is not a zip file"
-	assert_nothing_created
-}
-
-test_stops_when_unzip_is_missing_for_a_local_source() {
-	write_blueprint '{"plugins": ["./plugin.zip"]}'
-	write_zip "$sandbox/blueprint/plugin.zip" plugin
+# WordPress tells the name of a theme or plugin from a zip file, so mkwp
+# doesn't look inside the file.
+test_needs_no_unzip_for_a_local_zip_file() {
+	write_blueprint '{"themes": [{"source": "./theme-1.0.0.zip", "activate": true}], "plugins": [{"source": "./plugin-1.0.0.zip", "activate": true}]}'
+	write_zip "$sandbox/blueprint/theme-1.0.0.zip" theme
+	write_zip "$sandbox/blueprint/plugin-1.0.0.zip" plugin
 	hide unzip
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 27 "mkwp needs unzip to read \"./plugin.zip\" in the blueprint $blueprint. Install unzip and try again."
+	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
 	assert_nothing_created
 }
 

@@ -15,7 +15,7 @@ To update mkwp, run the same commands again. To install a particular version, pu
 
 Install the file from a release, not from a clone of the repository. The version is written into the file when a release is built, so a copy of `mkwp` taken straight from the repository has none and calls itself `unreleased`. To build the file from a clone, run `bin/build-release-assets`: it writes `release-assets/mkwp`, with the version taken from git.
 
-mkwp needs a running Docker provider and [DDEV](https://ddev.com/) on your `PATH`. To build a site from a blueprint, it also needs [jq](https://jqlang.org/), and `unzip` if the blueprint has local zip files. Current macOS comes with both.
+mkwp needs a running Docker provider and [DDEV](https://ddev.com/) on your `PATH`. To build a site from a blueprint, it also needs [jq](https://jqlang.org/), which current macOS comes with.
 
 ## Usage
 
@@ -341,7 +341,8 @@ BLUEPRINT
 		ref is checked out, or else the latest tag, or the default
 		branch if there is no tag.
 
-		A URL, which starts with http:// or https://, to a zip file.
+		A URL, which starts with http:// or https://, to a zip file,
+		which is named after the directory in it, as a local one is.
 
 		A slug on WordPress.org, which is anything else. The version
 		in version is installed, or else the latest one.
@@ -374,8 +375,7 @@ BLUEPRINT
 DEPENDENCY
 	This command requires that a Docker provider is installed and running
 	on your system and that DDEV is properly installed and in your path.
-	A blueprint also requires jq, and a blueprint with a local zip file
-	requires unzip.
+	A blueprint also requires jq.
 ```
 
 ## Blueprints

@@ -344,7 +344,8 @@ help() {
 		\e[1mref\e[0m is checked out, or else the latest tag, or the default
 		branch if there is no tag.
 
-		A URL, which starts with http:// or https://, to a zip file.
+		A URL, which starts with http:// or https://, to a zip file,
+		which is named after the directory in it, as a local one is.
 
 		A slug on WordPress.org, which is anything else. The version
 		in \e[1mversion\e[0m is installed, or else the latest one.
@@ -377,8 +378,7 @@ help() {
 \e[1mDEPENDENCY\e[0m
 	This command requires that a Docker provider is installed and running
 	on your system and that DDEV is properly installed and in your path.
-	A blueprint also requires jq, and a blueprint with a local zip file
-	requires unzip." | less -R
+	A blueprint also requires jq." | less -R
 
 }
 
@@ -767,10 +767,10 @@ read_blueprint_themes() {
 	for i in "${indices[@]}"; do
 		read_blueprint_item themes "$i"
 		if [[ $item_activate == true ]]; then
-			[[ -z $theme ]] || die "Invalid blueprint $blueprint: .themes has more than one theme with \"activate\": true" 36
-			theme=$item_name
+			[[ -z $theme_index ]] || die "Invalid blueprint $blueprint: .themes has more than one theme with \"activate\": true" 36
+			theme_index=$item_index
 		fi
-		last_theme=$item_name
+		last_theme_index=$item_index
 	done
 
 }
@@ -787,7 +787,7 @@ read_blueprint_plugins() {
 	for i in "${indices[@]}"; do
 		read_blueprint_item plugins "$i"
 		if [[ $item_activate == true ]]; then
-			plugins_to_activate+=("$item_name")
+			plugins_to_activate+=("$item_index")
 		fi
 	done
 
@@ -810,7 +810,7 @@ read_blueprint_mu_plugins() {
 # Usage: read_blueprint_item <list> <index>
 # Reads item number <index> in the blueprint's <list>, which is themes, plugins
 # or mu_plugins, checks its source, and adds it to <list>. Sets the global
-# variable item_name to the name the theme or plugin is activated by, and the
+# variable item_index to the item's index in <list>, as add_item does, and the
 # global variable item_activate to true if the item is marked with
 # "activate": true.
 read_blueprint_item() {
@@ -824,7 +824,6 @@ read_blueprint_item() {
 	local source=${fields[0]}
 	item_activate=${fields[1]}
 	local has_version=${fields[2]} has_ref=${fields[3]} pin=${fields[4]}
-	item_name=
 
 	local kind path=
 	kind=$(source_kind "$source")
@@ -856,31 +855,19 @@ read_blueprint_item() {
 			source=${path:-$source}
 			;;
 
-		# A local theme or plugin is a directory, which is named after
-		# itself, or a zip file, which is named after the directory it
-		# unpacks into
+		# A local theme or plugin is a directory, which is copied under
+		# its own name, so it's kept without a / at the end, or a zip file
 		*:local)
 			if [[ -d $path ]]; then
 				path=$(cd "$path" && pwd)
-				item_name=${path##*/}
 				kind=directory
-			else
-				command -v unzip > /dev/null || die "mkwp needs unzip to read \"$source\" in the blueprint $blueprint. Install unzip and try again." 27
-				item_name=$(zip_name "$path") || die "Invalid blueprint $blueprint: \"$source\" in $where is not a zip file" 35
 			fi
 			source=$path
 			;;
 
-		# A theme or plugin from a Git repository or a URL is named after
-		# the last part of the source
-		*:git | *:url)
-			item_name=$(source_name "$source")
-			;;
-
-		# Anything else is a slug on WordPress.org, which is also the name
+		# Anything else is a slug on WordPress.org
 		*:slug)
 			[[ $source =~ ^[[:lower:][:digit:]_-]+$ ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is not a WordPress.org slug. A local path must start with ./, ../, / or ~/." 34
-			item_name=$source
 			;;
 
 	esac
@@ -928,16 +915,22 @@ blueprint_path() {
 # (git), from a URL (url) or from WordPress.org (slug). <pin> is the version
 # to install from WordPress.org, or the ref to check out from Git, if any.
 # <list> is kept in three arrays with the same indices, <list>_sources,
-# <list>_kinds and <list>_pins.
+# <list>_kinds and <list>_pins, and a fourth, <list>_names, which
+# install_items fills in. Sets the global variable item_index to the index of
+# <source> in <list>.
 add_item() {
 
 	local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins
-	local existing
+	local i
 
-	for existing in "${sources[@]}"; do
-		[[ $existing != "$3" ]] || return 0
+	for i in "${!sources[@]}"; do
+		if [[ ${sources[i]} == "$3" ]]; then
+			item_index=$i
+			return 0
+		fi
 	done
 
+	item_index=${#sources[@]}
 	sources+=("$3")
 	kinds+=("$2")
 	pins+=("${4:-}")
@@ -979,15 +972,9 @@ add_option_items() {
 
 }
 
-# Usage: theme_to_activate <theme-list>
-# Echo the slug of the last theme in the list of themes <theme-list>.
-theme_to_activate() {
-	source_name "${1##*,}"
-}
-
 # Usage: source_name <source>
-# Echoes the name of a theme or plugin from <source>, which is the last part of
-# its path or URL, without its suffix.
+# Echoes the name of a theme or plugin from the Git repository <source>, which
+# is the last part of its URL, without its suffix.
 source_name() {
 
 	(
@@ -999,19 +986,6 @@ source_name() {
 		echo "${1//+(*\/|.*)}"
 
 	)
-
-}
-
-# Usage: zip_name <zip-file>
-# Echoes the name of the directory that the theme or plugin in <zip-file>
-# unpacks into, which is the top directory of the first entry in the file.
-# Fails if <zip-file> is not a zip file.
-zip_name() {
-
-	local entries
-	entries=$(unzip -Z1 "$1" 2> /dev/null) || return 1
-	entries=${entries%%$'\n'*}
-	echo "${entries%%/*}"
 
 }
 
@@ -1135,41 +1109,76 @@ copy_into_site() {
 
 # Usage: install_items <list>
 # Installs the themes, plugins or mu-plugins in <list>, which is themes, plugins
-# or mu_plugins, into the directory with the same name underneath wp-content.
-# See add_item.
+# or mu_plugins, into the directory with the same name underneath wp-content,
+# and sets the name that WordPress lists each theme or plugin by, and activates
+# it by, in <list>_names. See add_item.
 install_items() {
 
-	(
+	# shellcheck disable=SC2178,SC2034 # The arrays are used by their names
+	local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins names=${1}_names
+	local dir=${1//_/-} # mu_plugins are installed in mu-plugins
+	local type=${dir%s}
+	local -a batch=()
+	local i
 
-		# shellcheck disable=SC2178 # The arrays are used by their names
-		local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins
-		local dir=${1//_/-} # mu_plugins are installed in mu-plugins
-		local type=${dir%s}
-		local -a batch=()
-		local i
+	cd "$wp_path/wp-content/$dir"
 
-		cd "$wp_path/wp-content/$dir"
+	# Handle items that need special treatment one by one, and collect plain
+	# slugs for a single batched WP-CLI install. A version applies to every
+	# slug in a WP-CLI install, so a slug with a version is installed on its
+	# own. A theme or plugin from a zip file, local or at a URL, is named
+	# after the directory in the zip file, which only WordPress reads, so it's
+	# installed on its own too, and WordPress is asked for its name.
+	for i in "${!sources[@]}"; do
+		case $type:${kinds[i]} in
+			mu-plugin:local) copy_into_site "${sources[i]}" ;;
+			mu-plugin:url)   curl -OLf "${sources[i]}" ;;
+			*:local | *:url) install_and_name "$type" "${kinds[i]}" "${sources[i]}"; names[i]=$installed_name ;;
+			*:directory)     copy_into_site "${sources[i]}"; names[i]=${sources[i]##*/} ;;
+			*:git)           download_from_git "${sources[i]}" "${pins[i]}"; names[i]=$(source_name "${sources[i]}") ;;
+			*:slug)
+				names[i]=${sources[i]}
+				if [[ ${pins[i]} ]]; then
+					ddev wp "$type" install "${sources[i]}" --version="${pins[i]}"
+				else
+					batch+=("${sources[i]}")
+				fi
+				;;
+		esac
+	done
 
-		# Handle items that need special treatment one by one, and collect
-		# plain slugs and zip URLs for a single batched WP-CLI install. A
-		# version applies to every slug in a WP-CLI install, so a slug with a
-		# version is installed on its own.
-		for i in "${!sources[@]}"; do
-			case ${kinds[i]} in
-				local)     if [[ $type == mu-plugin ]]; then copy_into_site "${sources[i]}"; else wp_install_zip "$type" "${sources[i]}"; fi ;;
-				directory) copy_into_site "${sources[i]}" ;;
-				git)       download_from_git "${sources[i]}" "${pins[i]}" ;;
-				url)       if [[ ${sources[i]} == *.php ]]; then curl -OLf "${sources[i]}"; else batch+=("${sources[i]}"); fi ;;
-				slug)      if [[ ${pins[i]} ]]; then ddev wp "$type" install "${sources[i]}" --version="${pins[i]}"; else batch+=("${sources[i]}"); fi ;;
-			esac
-		done
+	# Install all collected slugs in one WP-CLI call
+	if (( ${#batch[@]} )); then
+		ddev wp "$type" install "${batch[@]}"
+	fi
 
-		# Install all collected slugs and URLs in one WP-CLI call
-		if (( ${#batch[@]} )); then
-			ddev wp "$type" install "${batch[@]}"
-		fi
+	cd "$wp_path"
 
-	)
+}
+
+# Usage: install_and_name <type> <kind> <source>
+# Installs a theme or plugin, as <type> says, from <source>, which is a local
+# zip file or a URL, as <kind> says, and sets the global variable
+# installed_name to the name WordPress gave it. Only WordPress reads the name
+# of the directory in a zip file, so the name is the one theme or plugin that
+# WordPress lists afterwards but not before. A URL to a PHP file is downloaded
+# as it is, as for an mu-plugin.
+install_and_name() {
+
+	local type=$1 kind=$2 source=$3 before after
+
+	before=$(wp_value "$type" list --field=name | sort)
+	if [[ $kind == local ]]; then
+		wp_install_zip "$type" "$source"
+	elif [[ $source == *.php ]]; then
+		curl -OLf "$source"
+	else
+		ddev wp "$type" install "$source"
+	fi
+	after=$(wp_value "$type" list --field=name | sort)
+
+	installed_name=$(comm -13 <(echo "$before") <(echo "$after"))
+	[[ $installed_name && $installed_name != *$'\n'* ]] || die "Couldn't tell what WordPress named the $type from $source, since it doesn't list exactly one new $type after installing it." 54
 
 }
 
@@ -1624,25 +1633,26 @@ main() {
 	blueprint_named_in=
 
 	# The blueprint's directory, which its relative paths are relative to,
-	# and the outputs of read_blueprint_item.
+	# and the outputs of read_blueprint_item, add_item and install_and_name.
 	blueprint_dir=
-	item_name=
+	item_index=
 	item_activate=
+	installed_name=
 
 	# The themes, plugins and mu-plugins to install, in arrays that are used
 	# by their names. See add_item.
 	# shellcheck disable=SC2034
-	themes_sources=() themes_kinds=() themes_pins=()
+	themes_sources=() themes_kinds=() themes_pins=() themes_names=()
 	# shellcheck disable=SC2034
-	plugins_sources=() plugins_kinds=() plugins_pins=()
+	plugins_sources=() plugins_kinds=() plugins_pins=() plugins_names=()
 	# shellcheck disable=SC2034
-	mu_plugins_sources=() mu_plugins_kinds=() mu_plugins_pins=()
+	mu_plugins_sources=() mu_plugins_kinds=() mu_plugins_pins=() mu_plugins_names=()
 
-	# The name of the theme to activate, and of the plugins to activate. The
-	# last theme listed is activated if none is chosen and there is no
-	# database.
-	theme=
-	last_theme=
+	# The index in themes_sources of the theme to activate, and those in
+	# plugins_sources of the plugins to activate. The last theme listed is
+	# activated if none is chosen and there is no database.
+	theme_index=
+	last_theme_index=
 	plugins_to_activate=()
 
 	# The files and directories to copy, and the directories underneath
@@ -1706,10 +1716,10 @@ main() {
 	# Add the themes, plugins and mu-plugins given on the command line after
 	# the blueprint's. The last theme given is activated, instead of the theme
 	# the blueprint would have activated.
-	if [[ $themes ]]; then
-		theme=$(theme_to_activate "$themes")
-	fi
 	add_option_items themes "$themes"
+	if [[ $themes ]]; then
+		theme_index=$item_index
+	fi
 	add_option_items plugins "$plugins"
 	add_option_items mu_plugins "$mu_plugins"
 
@@ -1883,10 +1893,10 @@ main() {
 		default_theme=$(sed -n "s/.*'WP_DEFAULT_THEME', '\([^']*\)'.*/\1/p" wp-includes/default-constants.php)
 		[[ "$default_theme" ]] || die "Couldn't determine the default theme." 25
 		add_item themes slug "$default_theme"
-		last_theme=$default_theme
+		last_theme_index=$item_index
 	fi
 	if [[ -z $database_dump && -z $database_snapshot ]]; then
-		theme=${theme:-$last_theme}
+		theme_index=${theme_index:-$last_theme_index}
 	fi
 
 	# Create home for "must use" plugins
@@ -1914,12 +1924,16 @@ main() {
 	fi
 
 	# Activate the theme, if there is one to activate, and the plugins marked
-	# for activation
-	if [[ $theme ]]; then
-		ddev wp theme activate "$theme"
+	# for activation, by the names that install_items found
+	if [[ $theme_index ]]; then
+		ddev wp theme activate "${themes_names[theme_index]}"
 	fi
 	if (( ${#plugins_to_activate[@]} )); then
-		ddev wp plugin activate "${plugins_to_activate[@]}"
+		plugin_names=()
+		for i in "${plugins_to_activate[@]}"; do
+			plugin_names+=("${plugins_names[i]}")
+		done
+		ddev wp plugin activate "${plugin_names[@]}"
 	fi
 
 	# Enable Redis as object cache backend: install and activate the Redis

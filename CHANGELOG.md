@@ -34,6 +34,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The last theme given with `-T` is now activated by the name WordPress installs it under, which for a zip file, local or at a URL, is the name of the directory in it. It used to be activated by the name of the file up to its first dot, so a theme from a file such as `v1.2.0.zip` couldn't be activated, and mkwp stopped after the site was half built. Themes and plugins in a blueprint are activated the same way, so mkwp doesn't need `unzip`.
 - A relative path to a zip file given with `-T`, `-P` or `-M` is now relative to the current directory. It was looked for in the site's themes, plugins or mu-plugins directory, where it was never found.
 
 ## [1.9.0] – 2026-10-21
