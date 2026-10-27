@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#
+# Runs the fast suite: the tests in tests/fast, or the test files given as
+# arguments. The suite needs neither Docker nor DDEV, and never reads or
+# changes the user's own ~/.mkwp.
+#
+# Exit codes:
+#   0  every test passed
+#   1  a test failed, or there was no test to run
+
+# shellcheck source-path=SCRIPTDIR
+
+# Errexit is left off here, since a failing test must not stop the run. Each
+# test runs with errexit on.
+set -uo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/runner.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/fast.bash"
+
+make_run_dir
+trap 'rm -rf "$run_dir"' EXIT
+
+files=("$@")
+if (( ${#files[@]} == 0 )); then
+	files=("$repo_dir"/tests/fast/*.bash)
+fi
+
+for file in "${files[@]}"; do
+	run_file "$file"
+done
+
+summarize

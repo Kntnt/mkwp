@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#
+# Runs the end-to-end suite: the tests in tests/e2e, or the test files given as
+# arguments. The suite builds real sites, so it needs a running Docker provider,
+# DDEV on PATH and access to the internet. It never reads or changes the user's
+# own ~/.mkwp, and touches no DDEV project but those it creates itself.
+#
+# The sites a test file builds are destroyed when the file is done. Whatever is
+# still there when the run ends, because a test failed or the run was
+# interrupted, is destroyed then.
+#
+# Exit codes:
+#   0  every test passed, and nothing was left behind
+#   1  a test failed, there was no test to run, or something was left behind
+#   2  Docker or DDEV can't be used
+
+# shellcheck source-path=SCRIPTDIR
+
+# Errexit is left off here, since a failing test must not stop the run. Each
+# test runs with errexit on.
+set -uo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/runner.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/e2e.bash"
+
+# Usage: finish
+# Destroys what the run left, removes the run directory and exits with the
+# run's status, or with 1 if something could not be removed. A second Ctrl-C
+# must not stop the cleanup halfway, so it is ignored from here on. The status
+# is not kept in a variable named status, which run_mkwp sets.
+finish() {
+
+	local run_status=$?
+	trap '' INT TERM HUP
+
+	destroy_sites
+	report_leftovers || run_status=1
+	rm -rf "$run_dir"
+
+	exit "$run_status"
+
+}
+
+require_docker_and_ddev
+make_run_dir
+prepare_e2e
+
+trap finish EXIT
+trap 'echo "Interrupted."; exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+files=("$@")
+if (( ${#files[@]} == 0 )); then
+	files=("$repo_dir"/tests/e2e/*.bash)
+fi
+
+for file in "${files[@]}"; do
+	run_file "$file"
+	destroy_sites
+done
+
+summarize

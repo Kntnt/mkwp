@@ -155,6 +155,26 @@ DEPENDENCY
 	on your system and that DDEV is properly installed and in your path.
 ```
 
+## Testing
+
+mkwp has two test suites. Both run `mkwp` the way a user does and look only at what a user sees: the exit status, the message, and the site that was built. Neither reads or changes your `~/.mkwp`.
+
+The fast suite checks that mkwp rejects what it must reject before it touches DDEV. It needs neither Docker nor DDEV, and takes a few seconds:
+
+```bash
+tests/run-fast
+```
+
+The end-to-end suite builds real sites and checks them through `ddev wp`. It needs a running Docker provider, DDEV on your `PATH` and access to the internet, and takes a few minutes. Run it before a release:
+
+```bash
+tests/run-e2e
+```
+
+Each site it builds is named `mkwp-e2e-` followed by a random part, is created in a temporary directory, and is destroyed with `mkwp --destroy` when its test file is done, even if a test fails or you interrupt the run. It touches no other DDEV project.
+
+To run only some of the tests, name their files, as in `tests/run-fast tests/fast/options.bash`. A test is a function whose name starts with `test_`, in a file under `tests/fast` or `tests/e2e`. The helpers the tests use are in `tests/lib`.
+
 ## Releasing
 
 `/release` tags the release, and `bin/build-release-assets` builds the `mkwp` it attaches: the script as committed at the tag, with the tag's version written into it. The repository keeps no version number anywhere else; the tag and `CHANGELOG.md` carry it.

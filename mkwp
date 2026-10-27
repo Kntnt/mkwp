@@ -648,13 +648,9 @@ main() {
 		echo "url=$url"
 	fi
 
-	# Check that DDEV is working
-	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
-
-	# Validate options
-	ddev_projects=$(ddev list -j)
-	if echo "$ddev_projects" | grep -q "\"approot\":\"$wp_path\""; then die "A DDEV project already exists in the directory $wp_path." 15; fi
-	if echo "$ddev_projects" | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
+	# Validate options. Everything that doesn't need DDEV is checked before
+	# DDEV and Docker are, so that a mistyped option is reported even when
+	# Docker isn't running.
 	[[ "$name" ]] || die "Error: Missing name of the project." 3
 	[[ "$name" =~ ^[[:alpha:]]([[:alnum:]-]*[[:alnum:]])?$ ]] || die "Invalid name: $name. A DDEV project name must start with a letter and may otherwise only contain letters, digits and hyphens. Use -D/--dirname to name the site directory freely." 11
 	[[ "$dirname" =~ ^[^/]+$ && "$dirname" != "." && "$dirname" != ".." ]] || die "Invalid dirname: $dirname" 20
@@ -664,8 +660,17 @@ main() {
 	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
 	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-5]$ ]] || die "Invalid PHP version: $php" 9
 	[[ -z "$wp" || "$wp" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "Invalid WordPress version: $wp" 17
+	[[ ! -e "$wp_path/.ddev/config.yaml" ]] || die "A DDEV project already exists in the directory $wp_path." 15
 	[[ ! -e "$wp_path" ]] || die "$wp_path already exists" 13
 	[[ -d "$directory" && -w "$directory" ]] || die "Cannot create $wp_path" 14
+
+	# Check that DDEV is working
+	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
+
+	# Validate the options that DDEV must be asked about
+	ddev_projects=$(ddev list -j)
+	if echo "$ddev_projects" | grep -q "\"approot\":\"$wp_path\""; then die "A DDEV project already exists in the directory $wp_path." 15; fi
+	if echo "$ddev_projects" | grep -q "\"name\":\"$name\""; then die "A project named '$name' already exists in DDEV." 16; fi
 
 	# Create and enter the WordPress root directory.
 	mkdir -p "$wp_path"
