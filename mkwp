@@ -10,7 +10,9 @@ readonly mkwp_version='unreleased'
 
 # The patterns that the values of some options must match. The settings in a
 # blueprint's site are checked against the pattern of the option with the
-# same name.
+# same name. blueprint.schema.json has these patterns too, and the ones below
+# and in read_blueprint_item and read_blueprint_database, so that an editor
+# can check a blueprint, and has to change with them.
 readonly title_pattern='^[[:print:]]+$'
 readonly language_pattern='^[[:lower:]]{2}(_[[:upper:]]{2})?$'
 readonly php_pattern='^7\.[0-4]$|^8\.[0-5]$'
