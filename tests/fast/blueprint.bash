@@ -215,6 +215,23 @@ test_rejects_two_activated_themes() {
 	assert_nothing_created
 }
 
+# An invalid value is only reported if it's the one used, which shows which
+# value takes precedence.
+test_lets_an_option_take_precedence_over_the_blueprint() {
+	write_blueprint '{"site": {"php": "8.4"}}'
+	run_mkwp -m test@example.com -V 9.1 -B "$blueprint" site
+	assert_rejected 9 'Invalid PHP version: 9.1'
+	assert_nothing_created
+}
+
+test_lets_the_blueprint_take_precedence_over_a_configuration_file() {
+	write_blueprint '{"site": {"php": "8.4"}}'
+	echo 'php = 9.1' > "$sandbox/config"
+	run_mkwp -m test@example.com -c "$sandbox/config" -B "$blueprint" site
+	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
+	assert_nothing_created
+}
+
 test_rejects_an_invalid_site_setting_even_when_the_command_line_replaces_it() {
 	write_blueprint '{"site": {"php": "9.1"}}'
 	run_mkwp -m test@example.com -V 8.4 -B "$blueprint" site
