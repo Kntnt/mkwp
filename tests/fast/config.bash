@@ -12,7 +12,7 @@ write_home_config() {
 test_rejects_a_site_setting_in_home_config() {
 	write_home_config 'title = My Site'
 	run_mkwp -m test@example.com site
-	assert_rejected 170 'Invalid configuration in ~/.mkwp: title on line 1 belongs in a blueprint now, as .site.title'
+	assert_rejected 39 'Invalid configuration in ~/.mkwp: title on line 1 belongs in a blueprint now, as .site.title'
 	assert_nothing_created
 }
 
@@ -37,7 +37,7 @@ test_rejects_each_site_setting_in_a_config_file_and_says_where_it_belongs() {
 	for key in "${!belongs[@]}"; do
 		printf '%s\n' '# Personal settings' 'email = test@example.com' "$key=value" > "$sandbox/config"
 		run_mkwp -c "$sandbox/config" site
-		assert_rejected 170 "Invalid configuration in $sandbox/config: $key on line 3 belongs ${belongs[$key]}"
+		assert_rejected 39 "Invalid configuration in $sandbox/config: $key on line 3 belongs ${belongs[$key]}"
 		assert_nothing_created
 	done
 
@@ -46,14 +46,14 @@ test_rejects_each_site_setting_in_a_config_file_and_says_where_it_belongs() {
 test_rejects_a_line_that_is_not_a_setting() {
 	write_home_config 'email = test@example.com' '' 'emial = test@example.com'
 	run_mkwp site
-	assert_rejected 171 'Invalid configuration in ~/.mkwp: line 3 is neither blank, a comment nor a setting: emial = test@example.com'
+	assert_rejected 40 'Invalid configuration in ~/.mkwp: line 3 is neither blank, a comment nor a setting: emial = test@example.com'
 	assert_nothing_created
 }
 
 test_rejects_a_setting_without_an_equal_sign() {
 	printf '%s\n' 'email test@example.com' > "$sandbox/config"
 	run_mkwp -c "$sandbox/config" site
-	assert_rejected 171 "Invalid configuration in $sandbox/config: line 1 is neither blank, a comment nor a setting: email test@example.com"
+	assert_rejected 40 "Invalid configuration in $sandbox/config: line 1 is neither blank, a comment nor a setting: email test@example.com"
 	assert_nothing_created
 }
 
@@ -188,9 +188,9 @@ test_builds_without_the_blueprint_a_config_file_names_with_no_blueprint() {
 test_rejects_no_blueprint_together_with_a_blueprint() {
 	write_blueprint '{}'
 	run_mkwp -m test@example.com --no-blueprint -B "$blueprint" site
-	assert_rejected 172 '--no-blueprint and -B/--blueprint can'\''t be used together.'
+	assert_rejected 41 '--no-blueprint and -B/--blueprint can'\''t be used together.'
 	assert_nothing_created
 	run_mkwp -m test@example.com --blueprint="$blueprint" --no-blueprint site
-	assert_rejected 172 '--no-blueprint and -B/--blueprint can'\''t be used together.'
+	assert_rejected 41 '--no-blueprint and -B/--blueprint can'\''t be used together.'
 	assert_nothing_created
 }

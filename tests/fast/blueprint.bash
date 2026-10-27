@@ -230,7 +230,7 @@ test_rejects_a_site_setting_in_a_configuration_file_with_a_blueprint() {
 	write_blueprint '{"site": {"php": "8.4"}}'
 	echo 'php = 8.3' > "$sandbox/config"
 	run_mkwp -m test@example.com -c "$sandbox/config" -B "$blueprint" site
-	assert_rejected 170 "Invalid configuration in $sandbox/config: php on line 1 belongs in a blueprint now, as .site.php"
+	assert_rejected 39 "Invalid configuration in $sandbox/config: php on line 1 belongs in a blueprint now, as .site.php"
 	assert_nothing_created
 }
 

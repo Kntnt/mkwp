@@ -446,15 +446,15 @@ read_config_file() {
 
 			key=${BASH_REMATCH[1]}
 			case $key in
-				name)    die "Invalid configuration in $label: name on line $number belongs on the command line now, as NAME" 170 ;;
-				dirname) die "Invalid configuration in $label: dirname on line $number belongs on the command line now, as -D or --dirname" 170 ;;
-				themes | plugins | mu-plugins) die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .${key//-/_}" 170 ;;
-				*)       die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .site.$key" 170 ;;
+				name)    die "Invalid configuration in $label: name on line $number belongs on the command line now, as NAME" 39 ;;
+				dirname) die "Invalid configuration in $label: dirname on line $number belongs on the command line now, as -D or --dirname" 39 ;;
+				themes | plugins | mu-plugins) die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .${key//-/_}" 39 ;;
+				*)       die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .site.$key" 39 ;;
 			esac
 
 		# Blank lines and comments are ignored, and anything else is an error
 		elif [[ ! $line =~ ^[[:space:]]*(#|$) ]]; then
-			die "Invalid configuration in $label: line $number is neither blank, a comment nor a setting: $line" 171
+			die "Invalid configuration in $label: line $number is neither blank, a comment nor a setting: $line" 40
 		fi
 
 	done < "$file"
@@ -1294,7 +1294,7 @@ main() {
 	fi
 
 	# --no-blueprint only makes sense without a blueprint on the command line
-	[[ -z $no_blueprint || -z $blueprint ]] || die "--no-blueprint and -B/--blueprint can't be used together." 172
+	[[ -z $no_blueprint || -z $blueprint ]] || die "--no-blueprint and -B/--blueprint can't be used together." 41
 
 	# Read the configuration files, which may name the blueprint
 	handle_config_files
