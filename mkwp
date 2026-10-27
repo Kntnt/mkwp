@@ -16,6 +16,11 @@ readonly language_pattern='^[[:lower:]]{2}(_[[:upper:]]{2})?$'
 readonly php_pattern='^7\.[0-4]$|^8\.[0-5]$'
 readonly wp_pattern='^[0-9]+(\.[0-9]+){0,2}$'
 
+# The pattern that the version of a theme or plugin from WordPress.org, and the
+# ref of one from a Git repository, must match in a blueprint: no white space,
+# and no hyphen first, where Git would take a ref for an option.
+readonly pin_pattern='^[^-[:space:]][^[:space:]]*$'
+
 help() {
 
 	echo -e "NAME
@@ -208,14 +213,15 @@ help() {
 		  \"site\": { \"title\": \"Client Site\", \"language\": \"sv_SE\", \"php\": \"8.4\", \"redis\": true },
 		  \"themes\": [
 		    \"twentytwentyfive\",
-		    { \"source\": \"./themes/client-child.zip\", \"activate\": true }
+		    { \"source\": \"./themes/client-child\", \"activate\": true }
 		  ],
 		  \"plugins\": [
-		    { \"source\": \"query-monitor\", \"activate\": true },
-		    { \"source\": \"git@github.com:example/private-plugin.git\", \"activate\": true },
+		    { \"source\": \"query-monitor\", \"version\": \"3.19.0\", \"activate\": true },
+		    { \"source\": \"git@github.com:example/private-plugin.git\", \"ref\": \"v2.1.0\", \"activate\": true },
 		    { \"source\": \"./plugins/commercial-plugin.zip\", \"note\": \"Licensed to us\" }
 		  ],
 		  \"mu_plugins\": [
+		    \"./mu-plugins/client-tweaks.php\",
 		    \"https://raw.githubusercontent.com/Kntnt/kntnt-adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php\"
 		  ]
 		}
@@ -241,7 +247,10 @@ help() {
 	\e[1mplugins\e[0m
 		Arrays of the themes and plugins to install. An item is a
 		source, as described below, or an object with the source in
-		\e[1msource\e[0m, and with \e[1mactivate\e[0m (true or false) and \e[1mnote\e[0m. Each item
+		\e[1msource\e[0m, and with \e[1mversion\e[0m, \e[1mref\e[0m, \e[1mactivate\e[0m (true or false) and
+		\e[1mnote\e[0m. \e[1mversion\e[0m is the version to install, and only a slug on
+		WordPress.org may have it. \e[1mref\e[0m is the tag, branch or commit to
+		check out, and only a Git repository may have it. Each item
 		with \"activate\": true is activated, and at most one theme may
 		have it. If no theme has it, the last theme is activated.
 		Themes and plugins given with \e[1m-T\e[0m and \e[1m-P\e[0m are installed after
@@ -249,8 +258,9 @@ help() {
 		instead of the blueprint's.
 
 	\e[1mmu_plugins\e[0m
-		An array of the mu-plugins to install. An item is the URL of a
-		PHP file, or an object with the URL in \e[1msource\e[0m, and with \e[1mnote\e[0m.
+		An array of the mu-plugins to install. An item is a source, as
+		described below, or an object with the source in \e[1msource\e[0m, and
+		with \e[1mnote\e[0m.
 
 	\e[1mfiles\e[0m
 		An array of the files and directories to copy into wp-content,
@@ -285,19 +295,28 @@ help() {
 	The source of a theme or plugin is one of these, recognized in this
 	order:
 
-		A local path, which starts with ./, ../, / or ~/, to a zip
-		file. A relative path is relative to the blueprint's directory.
-		The theme or plugin is named after the directory in the zip
-		file, so the file's own name doesn't matter.
+		A local path, which starts with ./, ../, / or ~/, to a
+		directory or a zip file. A relative path is relative to the
+		blueprint's directory. A directory is copied into the site
+		under its own name. A zip file is installed, and the theme or
+		plugin is named after the directory in the zip file, so the
+		file's own name doesn't matter.
 
 		A Git repository, whose URL ends with .git. Any URL that Git
 		accepts works, including SSH, so a private repository is
-		reached with your own SSH setup. The latest tag is checked out,
-		or the default branch if there is no tag.
+		reached with your own SSH setup. The tag, branch or commit in
+		\e[1mref\e[0m is checked out, or else the latest tag, or the default
+		branch if there is no tag.
 
 		A URL, which starts with http:// or https://, to a zip file.
 
-		A slug on WordPress.org, which is anything else.
+		A slug on WordPress.org, which is anything else. The version
+		in \e[1mversion\e[0m is installed, or else the latest one.
+
+	The source of an mu-plugin is a PHP file, given by a local path,
+	which starts with ./, ../, / or ~/ and is relative to the
+	blueprint's directory if it's relative, or by a URL, which starts
+	with http:// or https://.
 
 	A site is built in this order:
 
@@ -578,6 +597,8 @@ check_blueprint() {
 	# themes and plugins: each item is a source, or an object with one.
 	def item: {type: ["string", "object"], required: ["source"], props: {
 		source: string,
+		version: string,
+		ref: string,
 		activate: boolean,
 		note: note
 	}};
@@ -738,30 +759,54 @@ read_blueprint_item() {
 
 	# An item is a source, or an object with a source
 	local -a fields
-	read_blueprint fields "$where | if type == \"string\" then {source: .} else . end | .source, .activate == true"
+	read_blueprint fields "$where | if type == \"string\" then {source: .} else . end | .source, .activate == true, has(\"version\"), has(\"ref\"), .version // .ref // \"\""
 	local source=${fields[0]}
 	item_activate=${fields[1]}
+	local has_version=${fields[2]} has_ref=${fields[3]} pin=${fields[4]}
 	item_name=
 
-	local kind path
+	local kind path=
 	kind=$(source_kind "$source")
+
+	# Only a slug on WordPress.org can be pinned to a version, and only a Git
+	# repository to a ref, so an item has at most one of them, in pin
+	if [[ $has_version == true ]]; then
+		[[ $kind == slug ]] || die "Invalid blueprint $blueprint: $where has a version, but only a slug on WordPress.org can have one" 44
+		[[ $pin =~ $pin_pattern ]] || die "Invalid blueprint $blueprint: \"$pin\" in $where.version is not a valid version" 33
+	fi
+	if [[ $has_ref == true ]]; then
+		[[ $kind == git ]] || die "Invalid blueprint $blueprint: $where has a ref, but only a Git repository can have one" 45
+		[[ $pin =~ $pin_pattern ]] || die "Invalid blueprint $blueprint: \"$pin\" in $where.ref is not a valid Git ref" 33
+	fi
+
+	# A local source must be something that mkwp can read
+	if [[ $kind == local ]]; then
+		path=$(blueprint_path "$source")
+		[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where doesn't exist" 35
+		[[ -r $path && ( -x $path || ! -d $path ) ]] || die "Invalid blueprint $blueprint: \"$source\" in $where can't be read" 35
+	fi
 
 	case $list:$kind in
 
-		# An mu-plugin is a PHP file, downloaded from a URL
+		# An mu-plugin is a PHP file, local or downloaded from a URL
 		mu_plugins:*)
-			[[ $kind == url && $source == *.php ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is not the URL of a PHP file" 34
+			[[ $kind =~ ^(local|url)$ && $source == *.php ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is neither a local PHP file nor the URL of one" 34
+			[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is a directory, not a PHP file" 35
+			source=${path:-$source}
 			;;
 
-		# A local theme or plugin is a zip file, and is named after the
-		# directory it unpacks into
+		# A local theme or plugin is a directory, which is named after
+		# itself, or a zip file, which is named after the directory it
+		# unpacks into
 		*:local)
-			path=$(blueprint_path "$source")
-			[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where doesn't exist" 35
-			[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is a directory, not a zip file" 35
-			[[ -r $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where can't be read" 35
-			command -v unzip > /dev/null || die "mkwp needs unzip to read \"$source\" in the blueprint $blueprint. Install unzip and try again." 27
-			item_name=$(zip_name "$path") || die "Invalid blueprint $blueprint: \"$source\" in $where is not a zip file" 35
+			if [[ -d $path ]]; then
+				path=$(cd "$path" && pwd)
+				item_name=${path##*/}
+				kind=directory
+			else
+				command -v unzip > /dev/null || die "mkwp needs unzip to read \"$source\" in the blueprint $blueprint. Install unzip and try again." 27
+				item_name=$(zip_name "$path") || die "Invalid blueprint $blueprint: \"$source\" in $where is not a zip file" 35
+			fi
 			source=$path
 			;;
 
@@ -779,7 +824,7 @@ read_blueprint_item() {
 
 	esac
 
-	add_item "$list" "$kind" "$source"
+	add_item "$list" "$kind" "$source" "$pin"
 
 }
 
@@ -814,15 +859,18 @@ blueprint_path() {
 
 }
 
-# Usage: add_item <list> <kind> <source>
+# Usage: add_item <list> <kind> <source> [<pin>]
 # Adds a theme, plugin or mu-plugin to <list>, which is themes, plugins or
 # mu_plugins, unless <list> already has <source>. <kind> says how it's fetched
-# from <source>: as a local zip file (local), from a Git repository (git), from
-# a URL (url) or from WordPress.org (slug). <list> is kept in two arrays with
-# the same indices, <list>_sources and <list>_kinds.
+# from <source>: as a local zip file, or as an mu-plugin's local PHP file
+# (local), by copying a local directory (directory), from a Git repository
+# (git), from a URL (url) or from WordPress.org (slug). <pin> is the version
+# to install from WordPress.org, or the ref to check out from Git, if any.
+# <list> is kept in three arrays with the same indices, <list>_sources,
+# <list>_kinds and <list>_pins.
 add_item() {
 
-	local -n sources=${1}_sources kinds=${1}_kinds
+	local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins
 	local existing
 
 	for existing in "${sources[@]}"; do
@@ -831,6 +879,7 @@ add_item() {
 
 	sources+=("$3")
 	kinds+=("$2")
+	pins+=("${4:-}")
 
 }
 
@@ -905,13 +954,14 @@ zip_name() {
 
 }
 
-# Usage: download_latest_tag <remote-git-repository-url>
-# Clones <remote-git-repository-url> and checkout the latest tag.
-# The local repository created in the process is removed. The argument
+# Usage: download_from_git <remote-git-repository-url> [<ref>]
+# Clones <remote-git-repository-url> and checks out <ref>, which is a tag, a
+# branch or a commit, or, without <ref>, the latest tag. The local repository
+# created in the process is removed. The argument
 # <remote-git-repository-url> must be the URL to a remote repository.
 # Example: https://github.com/Kntnt/kntnt-canvas.git
 # Example: git@github.com:Kntnt/kntnt-canvas.git
-download_latest_tag() {
+download_from_git() {
 
 	(
 
@@ -920,6 +970,9 @@ download_latest_tag() {
 
 		# Store the first argument of the function in 'repo', which should be the repository URL
 		local repo=$1
+
+		# The tag, branch or commit to check out, if one is given
+		local ref=${2:-}
 
 		# Extract the repository name from the URL for use as the directory name
 		local name
@@ -936,15 +989,23 @@ download_latest_tag() {
 		git init
 		git remote add origin "$repo"
 
-		# Fetch all tags from the remote repository, cleaning up any deleted references
+		# Fetch all branches and tags from the remote repository, cleaning up any deleted references
 		git fetch --prune --tags
 
 		# Attempt to identify the latest tag in the remote repository
 		local tag
 		tag=$(git rev-list --tags --max-count=1)
 
+		# If a ref is given, check it out. A branch is checked out from the
+		# remote's branch with the same name.
+		if [[ -n $ref ]]; then
+
+			checkout=$ref
+
+			echo "Checking out the given ref: $checkout"
+
 		# If a tag is found, convert the tag hash to its name and checkout the tag
-		if [[ -n $tag ]]; then
+		elif [[ -n $tag ]]; then
 
 			# Convert the latest tag hash to the tag name
 			checkout=$(git describe --tags "$tag")
@@ -1000,6 +1061,17 @@ wp_install_zip() {
 
 }
 
+# Usage: copy_into_site <path>
+# Copies the local directory or file <path> into the current directory, which
+# is in the site, under its own name, and flushes Mutagen so that the copy is
+# visible inside the container before the next WP-CLI step.
+copy_into_site() {
+
+	cp -R "$1" .
+	ddev mutagen sync
+
+}
+
 # Usage: install_items <list>
 # Installs the themes, plugins or mu-plugins in <list>, which is themes, plugins
 # or mu_plugins, into the directory with the same name underneath wp-content.
@@ -1009,7 +1081,7 @@ install_items() {
 	(
 
 		# shellcheck disable=SC2178 # The arrays are used by their names
-		local -n sources=${1}_sources kinds=${1}_kinds
+		local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins
 		local dir=${1//_/-} # mu_plugins are installed in mu-plugins
 		local type=${dir%s}
 		local -a batch=()
@@ -1018,13 +1090,16 @@ install_items() {
 		cd "$wp_path/wp-content/$dir"
 
 		# Handle items that need special treatment one by one, and collect
-		# plain slugs and zip URLs for a single batched WP-CLI install.
+		# plain slugs and zip URLs for a single batched WP-CLI install. A
+		# version applies to every slug in a WP-CLI install, so a slug with a
+		# version is installed on its own.
 		for i in "${!sources[@]}"; do
 			case ${kinds[i]} in
-				local) wp_install_zip "$type" "${sources[i]}" ;;
-				git)   download_latest_tag "${sources[i]}" ;;
-				url)   if [[ ${sources[i]} == *.php ]]; then curl -OLf "${sources[i]}"; else batch+=("${sources[i]}"); fi ;;
-				slug)  batch+=("${sources[i]}") ;;
+				local)     if [[ $type == mu-plugin ]]; then copy_into_site "${sources[i]}"; else wp_install_zip "$type" "${sources[i]}"; fi ;;
+				directory) copy_into_site "${sources[i]}" ;;
+				git)       download_from_git "${sources[i]}" "${pins[i]}" ;;
+				url)       if [[ ${sources[i]} == *.php ]]; then curl -OLf "${sources[i]}"; else batch+=("${sources[i]}"); fi ;;
+				slug)      if [[ ${pins[i]} ]]; then ddev wp "$type" install "${sources[i]}" --version="${pins[i]}"; else batch+=("${sources[i]}"); fi ;;
 			esac
 		done
 
@@ -1307,11 +1382,11 @@ main() {
 	# The themes, plugins and mu-plugins to install, in arrays that are used
 	# by their names. See add_item.
 	# shellcheck disable=SC2034
-	themes_sources=() themes_kinds=()
+	themes_sources=() themes_kinds=() themes_pins=()
 	# shellcheck disable=SC2034
-	plugins_sources=() plugins_kinds=()
+	plugins_sources=() plugins_kinds=() plugins_pins=()
 	# shellcheck disable=SC2034
-	mu_plugins_sources=() mu_plugins_kinds=()
+	mu_plugins_sources=() mu_plugins_kinds=() mu_plugins_pins=()
 
 	# The name of the theme to activate, and of the plugins to activate.
 	theme=

@@ -210,14 +210,15 @@ BLUEPRINT
 		  "site": { "title": "Client Site", "language": "sv_SE", "php": "8.4", "redis": true },
 		  "themes": [
 		    "twentytwentyfive",
-		    { "source": "./themes/client-child.zip", "activate": true }
+		    { "source": "./themes/client-child", "activate": true }
 		  ],
 		  "plugins": [
-		    { "source": "query-monitor", "activate": true },
-		    { "source": "git@github.com:example/private-plugin.git", "activate": true },
+		    { "source": "query-monitor", "version": "3.19.0", "activate": true },
+		    { "source": "git@github.com:example/private-plugin.git", "ref": "v2.1.0", "activate": true },
 		    { "source": "./plugins/commercial-plugin.zip", "note": "Licensed to us" }
 		  ],
 		  "mu_plugins": [
+		    "./mu-plugins/client-tweaks.php",
 		    "https://raw.githubusercontent.com/Kntnt/kntnt-adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php"
 		  ]
 		}
@@ -243,7 +244,10 @@ BLUEPRINT
 	plugins
 		Arrays of the themes and plugins to install. An item is a
 		source, as described below, or an object with the source in
-		source, and with activate (true or false) and note. Each item
+		source, and with version, ref, activate (true or false) and
+		note. version is the version to install, and only a slug on
+		WordPress.org may have it. ref is the tag, branch or commit to
+		check out, and only a Git repository may have it. Each item
 		with "activate": true is activated, and at most one theme may
 		have it. If no theme has it, the last theme is activated.
 		Themes and plugins given with -T and -P are installed after
@@ -251,8 +255,9 @@ BLUEPRINT
 		instead of the blueprint's.
 
 	mu_plugins
-		An array of the mu-plugins to install. An item is the URL of a
-		PHP file, or an object with the URL in source, and with note.
+		An array of the mu-plugins to install. An item is a source, as
+		described below, or an object with the source in source, and
+		with note.
 
 	files
 		An array of the files and directories to copy into wp-content,
@@ -287,19 +292,28 @@ BLUEPRINT
 	The source of a theme or plugin is one of these, recognized in this
 	order:
 
-		A local path, which starts with ./, ../, / or ~/, to a zip
-		file. A relative path is relative to the blueprint's directory.
-		The theme or plugin is named after the directory in the zip
-		file, so the file's own name doesn't matter.
+		A local path, which starts with ./, ../, / or ~/, to a
+		directory or a zip file. A relative path is relative to the
+		blueprint's directory. A directory is copied into the site
+		under its own name. A zip file is installed, and the theme or
+		plugin is named after the directory in the zip file, so the
+		file's own name doesn't matter.
 
 		A Git repository, whose URL ends with .git. Any URL that Git
 		accepts works, including SSH, so a private repository is
-		reached with your own SSH setup. The latest tag is checked out,
-		or the default branch if there is no tag.
+		reached with your own SSH setup. The tag, branch or commit in
+		ref is checked out, or else the latest tag, or the default
+		branch if there is no tag.
 
 		A URL, which starts with http:// or https://, to a zip file.
 
-		A slug on WordPress.org, which is anything else.
+		A slug on WordPress.org, which is anything else. The version
+		in version is installed, or else the latest one.
+
+	The source of an mu-plugin is a PHP file, given by a local path,
+	which starts with ./, ../, / or ~/ and is relative to the
+	blueprint's directory if it's relative, or by a URL, which starts
+	with http:// or https://.
 
 	A site is built in this order:
 
@@ -325,7 +339,7 @@ DEPENDENCY
 
 A blueprint is a JSON file that describes a site, and `mkwp --blueprint=<file> NAME` builds that site. The format, the rules for sources and the order in which a site is built are described under BLUEPRINT in the usage above, which also has an example.
 
-A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files and other files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
+A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files, directories, PHP files and other files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
 
 To build every site from a blueprint of yours unless you say otherwise, name it in `~/.mkwp`, as in `blueprint = ~/blueprints/default.json`. A blueprint named in a configuration file given with `-c`, such as one for a client, is used instead, and a blueprint given with `--blueprint` is used before either. `--no-blueprint` builds a plain site. The configuration files hold only your personal settings and that blueprint; everything that describes the site belongs in the blueprint. See CONFIGURATION in the usage above.
 
