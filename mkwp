@@ -445,9 +445,9 @@ check_blueprint() {
 	# Emits an error for each way the value breaks schema, where path is the
 	# value's path in the blueprint. A schema is an object with the JSON type
 	# or types the value may have, under type, the keys an object may have,
-	# under props, the keys it must have, under required, and the schema of
-	# the items in an array, under items. A key whose schema is null is not a
-	# known key.
+	# under props, the keys it must have, under required, the schema of the
+	# items in an array, under items, and whether an array must have items,
+	# under nonempty. A key whose schema is null is not a known key.
 	def check($schema; $path):
 		type as $type
 		| ([$schema.type] | flatten) as $types
@@ -461,6 +461,8 @@ check_blueprint() {
 			( ($schema.required // [])[] as $key | select(has($key) | not)
 				| "32 \($path | location) has no \"\($key)\"" ),
 			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
+		elif $type == "array" and $schema.nonempty and length == 0 then
+			"220 \($path | location) must not be empty"
 		elif $type == "array" then
 			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index])
 		else
@@ -500,8 +502,8 @@ check_blueprint() {
 	# database: not supported yet, so rejected as an unknown key.
 	def database: null;
 
-	# wp_cli: not supported yet, so rejected as an unknown key.
-	def wp_cli: null;
+	# wp_cli: each command is an array of the arguments to wp.
+	def wp_cli: {type: "array", items: {type: "array", nonempty: true, items: string}};
 
 	# The blueprint itself.
 	def blueprint: {type: "object", props: {
