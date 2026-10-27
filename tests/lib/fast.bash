@@ -119,6 +119,32 @@ ddev_has_project() {
 
 }
 
+# Usage: write_blueprint <json>
+# Writes <json> to a blueprint file in a directory of its own, outside the work
+# directory, and sets blueprint to the file's path. A test puts the files the
+# blueprint refers to in the same directory.
+write_blueprint() {
+
+	mkdir -p "$sandbox/blueprint"
+	blueprint="$sandbox/blueprint/blueprint.json"
+	printf '%s\n' "$1" > "$blueprint"
+
+}
+
+# Usage: write_zip <zip-file> <name>
+# Writes a zip file at <zip-file> that holds a theme or plugin in a directory
+# named <name>.
+write_zip() {
+
+	local dir
+	dir=$(mktemp -d "$sandbox/zip.XXXXXX")
+	mkdir "$dir/$2"
+	echo '<?php' > "$dir/$2/$2.php"
+	(cd "$dir" && zip -qr - "$2") > "$1"
+	rm -rf "$dir"
+
+}
+
 # Usage: assert_nothing_created
 # Asserts that mkwp created nothing in the work directory, where it would have
 # put the site, and that DDEV was asked for nothing but whether Docker runs and

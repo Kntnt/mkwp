@@ -8,6 +8,14 @@
 # copy taken straight from the repository calls itself unreleased.
 readonly mkwp_version='unreleased'
 
+# The patterns that the values of some options must match. The settings in a
+# blueprint's site are checked against the pattern of the option with the
+# same name.
+readonly title_pattern='^[[:print:]]+$'
+readonly language_pattern='^[[:lower:]]{2}(_[[:upper:]]{2})?$'
+readonly php_pattern='^7\.[0-4]$|^8\.[0-5]$'
+readonly wp_pattern='^[0-9]+(\.[0-9]+){0,2}$'
+
 help() {
 
 	echo -e "NAME
@@ -199,6 +207,7 @@ handle_arguments() {
 			-V | --php=*) extract_argument php "$@"; shift $shift_n ;;
 			-W | --wp=*) extract_argument wp "$@"; shift $shift_n ;;
 			-R | --redis) redis=true; shift ;;
+			-B | --blueprint=*) extract_argument blueprint "$@"; shift $shift_n ;;
 			--destroy) destroy=true; shift ;;
 			-c | --config=*) extract_argument config "$@"; shift $shift_n ;;
 			*) if [[ -z "$name" ]]; then name="$1"; shift; else die "Error: Invalid flag: $1" 2; fi ;;
@@ -264,57 +273,432 @@ handle_config_files() {
 
 }
 
+# Usage: handle_blueprint
+# Reads the blueprint given with -B/--blueprint. All of it is checked before
+# mkwp checks Docker and DDEV, so that a mistake in it never leaves a
+# half-built site behind.
+handle_blueprint() {
+
+	# jq reads the blueprint, and is needed only when there is one
+	command -v jq > /dev/null || die "mkwp needs jq to read a blueprint. Install jq and try again." 27
+
+	# The blueprint must be a file that can be read
+	[[ -f $blueprint && -r $blueprint ]] || die "Couldn't read the blueprint $blueprint" 28
+
+	# Check the blueprint's structure before anything is read from it
+	check_blueprint
+
+	# Relative paths in the blueprint are relative to its own directory
+	blueprint_dir=$(cd "$(dirname "$blueprint")" && pwd -P)
+
+	# Read each key the blueprint has with the function named read_blueprint_
+	# followed by the key, if there is one. Keys such as note need no reading.
+	local key
+	local -a keys
+	read_blueprint keys 'keys_unsorted[]'
+	for key in "${keys[@]}"; do
+		if declare -F "read_blueprint_$key" > /dev/null; then
+			"read_blueprint_$key"
+		fi
+	done
+
+}
+
+# Usage: check_blueprint
+# Checks that the blueprint is one JSON object, with only the keys the
+# blueprint format has, and with values of the types the format gives them.
+check_blueprint() {
+
+	# jq accepts an empty file, and a file with several JSON values, as a
+	# stream of values, so count them.
+	local count
+	count=$(jq -s length < "$blueprint" 2>&1) || die "Invalid JSON in the blueprint $blueprint: ${count#jq: parse error: }" 29
+	(( count == 1 )) || die "Invalid JSON in the blueprint $blueprint: it must hold one JSON object, but holds $count values" 29
+
+	# The jq program that checks the blueprint against its format. It prints
+	# the first error it finds, if any, preceded by the exit status for that
+	# kind of error and a space.
+	local program
+	IFS= read -r -d '' program <<- 'JQ' || true
+
+	# Usage: location
+	# The place of a value in the blueprint, given its path, written the way
+	# jq writes it, e.g. .themes[2].source.
+	def location:
+		if length == 0 then "the top level"
+		else map(
+			if type == "number" then "[\(.)]"
+			elif test("^[A-Za-z_][A-Za-z0-9_]*$") then ".\(.)"
+			else ".[\(tojson)]" end
+		) | join("") end;
+
+	# Usage: with_article
+	# The name of a JSON type with its indefinite article, e.g. an object.
+	def with_article:
+		if . == "null" then . elif test("^[aeiou]") then "an \(.)" else "a \(.)" end;
+
+	# Usage: check(schema; path)
+	# Emits an error for each way the value breaks schema, where path is the
+	# value's path in the blueprint. A schema is an object with the JSON type
+	# or types the value may have, under type, the keys an object may have,
+	# under props, the keys it must have, under required, and the schema of
+	# the items in an array, under items. A key whose schema is null is not a
+	# known key.
+	def check($schema; $path):
+		type as $type
+		| ([$schema.type] | flatten) as $types
+		| if $schema == null then
+			"30 \($path | location) is not a known key"
+		elif $types | any(. == $type) | not then
+			"31 \($path | location) must be \($types | map(with_article) | join(" or ")), not \($type | with_article)"
+		elif $type == "string" and (explode | any(. == 0)) then
+			"31 \($path | location) must not contain a NUL character"
+		elif $type == "object" then
+			( ($schema.required // [])[] as $key | select(has($key) | not)
+				| "32 \($path | location) has no \"\($key)\"" ),
+			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
+		elif $type == "array" then
+			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index])
+		else
+			empty
+		end;
+
+	# The parts of the blueprint format, from the inside out.
+	def string: {type: "string"};
+	def boolean: {type: "boolean"};
+	def note: string;
+
+	# site: the settings of the site.
+	def site: {type: "object", props: {
+		title: string,
+		language: string,
+		php: string,
+		wp: string,
+		redis: boolean
+	}};
+
+	# themes and plugins: each item is a source, or an object with one.
+	def item: {type: ["string", "object"], required: ["source"], props: {
+		source: string,
+		activate: boolean,
+		note: note
+	}};
+
+	# mu_plugins: each item is a source, or an object with one.
+	def mu_plugin: {type: ["string", "object"], required: ["source"], props: {
+		source: string,
+		note: note
+	}};
+
+	# files: not supported yet, so rejected as an unknown key.
+	def files: null;
+
+	# database: not supported yet, so rejected as an unknown key.
+	def database: null;
+
+	# wp_cli: not supported yet, so rejected as an unknown key.
+	def wp_cli: null;
+
+	# The blueprint itself.
+	def blueprint: {type: "object", props: {
+		"$schema": string,
+		note: note,
+		site: site,
+		themes: {type: "array", items: item},
+		plugins: {type: "array", items: item},
+		mu_plugins: {type: "array", items: mu_plugin},
+		files: files,
+		database: database,
+		wp_cli: wp_cli
+	}};
+
+	first(check(blueprint; []))
+	JQ
+
+	local error
+	error=$(jq -r "$program" < "$blueprint" 2>&1) || die "Couldn't check the blueprint $blueprint: $error" 29
+	[[ -z $error ]] || die "Invalid blueprint $blueprint: ${error#* }" "${error%% *}"
+
+}
+
+# Usage: read_blueprint <array> <filter>
+# Sets the array named <array> to the values that the jq <filter> yields from
+# the blueprint, as strings. The values are separated by NUL characters, which
+# check_blueprint has made sure that no string in the blueprint has.
+read_blueprint() {
+
+	local -n values=$1
+	# shellcheck disable=SC2034 # The array is used by its name
+	mapfile -d '' values < <(jq -j "($2) | tostring + \"\\u0000\"" < "$blueprint")
+	wait $!
+
+}
+
+# Usage: read_blueprint_site
+# Reads the site settings in the blueprint. Each is checked against the
+# pattern of the option with the same name, and is used unless the option is
+# given on the command line.
+read_blueprint_site() {
+
+	local -a settings
+	read_blueprint settings '.site | to_entries[] | .key, .value'
+
+	local i key value pattern what
+	for (( i = 0; i < ${#settings[@]}; i += 2 )); do
+
+		key=${settings[i]}
+		value=${settings[i + 1]}
+
+		case $key in
+			title)    pattern=$title_pattern what='title' ;;
+			language) pattern=$language_pattern what='language code' ;;
+			php)      pattern=$php_pattern what='PHP version' ;;
+			wp)       pattern=$wp_pattern what='WordPress version' ;;
+			redis)    pattern='^(true|false)$' what='setting for Redis' ;;
+		esac
+		[[ $value =~ $pattern ]] || die "Invalid blueprint $blueprint: \"$value\" in .site.$key is not a valid $what" 33
+
+		# An option given on the command line takes precedence
+		if [[ -z ${!key} ]]; then
+			printf -v "$key" '%s' "$value"
+		fi
+
+	done
+
+}
+
+# Usage: read_blueprint_themes
+# Reads the themes in the blueprint. The theme marked with "activate": true is
+# the one to activate, or, if none is marked, the last one.
+read_blueprint_themes() {
+
+	local -a indices
+	read_blueprint indices '.themes | keys[]'
+
+	local i marked=
+	for i in "${indices[@]}"; do
+		read_blueprint_item themes "$i"
+		if [[ $item_activate == true ]]; then
+			[[ -z $marked ]] || die "Invalid blueprint $blueprint: .themes has more than one theme with \"activate\": true" 36
+			marked=$item_name
+		fi
+
+		# Activate the marked theme, or the last one read so far
+		theme=${marked:-$item_name}
+
+	done
+
+}
+
+# Usage: read_blueprint_plugins
+# Reads the plugins in the blueprint, and notes those marked with
+# "activate": true for activation.
+read_blueprint_plugins() {
+
+	local -a indices
+	read_blueprint indices '.plugins | keys[]'
+
+	local i
+	for i in "${indices[@]}"; do
+		read_blueprint_item plugins "$i"
+		if [[ $item_activate == true ]]; then
+			plugins_to_activate+=("$item_name")
+		fi
+	done
+
+}
+
+# Usage: read_blueprint_mu_plugins
+# Reads the mu-plugins in the blueprint.
+read_blueprint_mu_plugins() {
+
+	local -a indices
+	read_blueprint indices '.mu_plugins | keys[]'
+
+	local i
+	for i in "${indices[@]}"; do
+		read_blueprint_item mu_plugins "$i"
+	done
+
+}
+
+# Usage: read_blueprint_item <list> <index>
+# Reads item number <index> in the blueprint's <list>, which is themes, plugins
+# or mu_plugins, checks its source, and adds it to <list>. Sets the global
+# variable item_name to the name the theme or plugin is activated by, and the
+# global variable item_activate to true if the item is marked with
+# "activate": true.
+read_blueprint_item() {
+
+	local list=$1
+	local where=".$1[$2]"
+
+	# An item is a source, or an object with a source
+	local -a fields
+	read_blueprint fields "$where | if type == \"string\" then {source: .} else . end | .source, .activate == true"
+	local source=${fields[0]}
+	item_activate=${fields[1]}
+	item_name=
+
+	local kind path
+	kind=$(source_kind "$source")
+
+	case $list:$kind in
+
+		# An mu-plugin is a PHP file, downloaded from a URL
+		mu_plugins:*)
+			[[ $kind == url && $source == *.php ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is not the URL of a PHP file" 34
+			;;
+
+		# A local theme or plugin is a zip file, and is named after the
+		# directory it unpacks into
+		*:local)
+			path=$(blueprint_path "$source")
+			[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where doesn't exist" 35
+			[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is a directory, not a zip file" 35
+			[[ -r $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where can't be read" 35
+			command -v unzip > /dev/null || die "mkwp needs unzip to read \"$source\" in the blueprint $blueprint. Install unzip and try again." 27
+			item_name=$(zip_name "$path") || die "Invalid blueprint $blueprint: \"$source\" in $where is not a zip file" 35
+			source=$path
+			;;
+
+		# A theme or plugin from a Git repository or a URL is named after
+		# the last part of the source
+		*:git | *:url)
+			item_name=$(source_name "$source")
+			;;
+
+		# Anything else is a slug on WordPress.org, which is also the name
+		*:slug)
+			[[ $source =~ ^[[:lower:][:digit:]_-]+$ ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is not a WordPress.org slug. A local path must start with ./, ../, / or ~/." 34
+			item_name=$source
+			;;
+
+	esac
+
+	add_item "$list" "$kind" "$source"
+
+}
+
+# Usage: source_kind <source>
+# Echoes what the theme, plugin or mu-plugin source <source> in a blueprint is,
+# tried in this order: a local path (local), a Git repository (git), a URL
+# (url) or a slug on WordPress.org (slug).
+source_kind() {
+
+	# shellcheck disable=SC2088 # A literal ~/ is meant
+	case $1 in
+		./* | ../* | /* | '~/'*) echo local ;;
+		*.git)                   echo git ;;
+		http://* | https://*)    echo url ;;
+		*)                       echo slug ;;
+	esac
+
+}
+
+# Usage: blueprint_path <path>
+# Echoes the local path <path> from the blueprint as a path that works from any
+# directory: ~/ is the home directory, and a relative path is relative to the
+# blueprint's directory.
+blueprint_path() {
+
+	# shellcheck disable=SC2088 # A literal ~/ is meant
+	case $1 in
+		/*)    echo "$1" ;;
+		'~/'*) echo "$HOME/${1#'~/'}" ;;
+		*)     echo "$blueprint_dir/$1" ;;
+	esac
+
+}
+
+# Usage: add_item <list> <kind> <source>
+# Adds a theme, plugin or mu-plugin to <list>, which is themes, plugins or
+# mu_plugins, unless <list> already has <source>. <kind> says how it's fetched
+# from <source>: as a local zip file (local), from a Git repository (git), from
+# a URL (url) or from WordPress.org (slug). <list> is kept in two arrays with
+# the same indices, <list>_sources and <list>_kinds.
+add_item() {
+
+	local -n sources=${1}_sources kinds=${1}_kinds
+	local existing
+
+	for existing in "${sources[@]}"; do
+		[[ $existing != "$3" ]] || return 0
+	done
+
+	sources+=("$3")
+	kinds+=("$2")
+
+}
+
+# Usage: add_option_items <list> <items>
+# Adds the comma-separated <items>, given with -T, -P or -M, to <list>, which is
+# themes, plugins or mu_plugins. An item is fetched by the rules these options
+# have always had: from a Git repository if it ends with .git, as a local zip
+# file if there is such a file, from a URL if it starts with http:// or
+# https://, and from WordPress.org otherwise. A relative path is relative to
+# the current directory.
+add_option_items() {
+
+	local list=$1 item kind
+	local -a items=()
+	IFS=',' read -r -a items <<< "$2"
+
+	for item in "${items[@]}"; do
+
+		if [[ -e $item && $item != /* ]]; then
+			item=$PWD/$item
+		fi
+
+		if [[ $item == *.git ]]; then
+			kind=git
+		elif [[ -f $item ]]; then
+			kind=local
+		elif [[ $item == http://* || $item == https://* ]]; then
+			kind=url
+		else
+			kind=slug
+		fi
+
+		add_item "$list" "$kind" "$item"
+
+	done
+
+}
+
 # Usage: theme_to_activate <theme-list>
 # Echo the slug of the last theme in the list of themes <theme-list>.
 theme_to_activate() {
+	source_name "${1##*,}"
+}
+
+# Usage: source_name <source>
+# Echoes the name of a theme or plugin from <source>, which is the last part of
+# its path or URL, without its suffix.
+source_name() {
 
 	(
 
 		# Enable the extended pattern matching
 		shopt -s extglob
 
-		# Extract the last item of <theme-list>
-		local theme=${1##*,}
-
 		# Echo the basename without the suffix
-		echo "${theme//+(*\/|.*)}"
+		echo "${1//+(*\/|.*)}"
 
 	)
 
 }
 
-# Usage: make_unique_array <items>
-# When called, <items> should be a comma-separated list of items. After the
-# call, <items> contains an array where all items occur exactly once, in the
-# order of their first occurrence.
-make_unique_array() {
+# Usage: zip_name <zip-file>
+# Echoes the name of the directory that the theme or plugin in <zip-file>
+# unpacks into, which is the top directory of the first entry in the file.
+# Fails if <zip-file> is not a zip file.
+zip_name() {
 
-	# Uses name reference to refer to the original variable, which holds a
-	# comma-separated string on entry and an array on return.
-	local -n arr=$1
-
-	# If the string is empty, set it to an empty array and return
-	# shellcheck disable=SC2128
-	if [[ -z "$arr" ]]; then
-		arr=()
-		return
-	fi
-
-	# Splits the string into an array at each comma
-	local -a items
-	# shellcheck disable=SC2128
-	IFS=',' read -r -a items <<< "$arr"
-
-	# Rebuild the array, keeping only the first occurrence of each item
-	local -A seen=()
-	local item
-	arr=()
-	for item in "${items[@]}"; do
-		if [[ -z "${seen[$item]:-}" ]]; then
-			seen[$item]=1
-			arr+=("$item")
-		fi
-	done
+	local entries
+	entries=$(unzip -Z1 "$1" 2> /dev/null) || return 1
+	entries=${entries%%$'\n'*}
+	echo "${entries%%/*}"
 
 }
 
@@ -335,7 +719,8 @@ download_latest_tag() {
 		local repo=$1
 
 		# Extract the repository name from the URL for use as the directory name
-		local name=${repo//+(*\/|.*)}
+		local name
+		name=$(source_name "$repo")
 
 		# The label of the tag or branch to be checked out
 		local checkout=
@@ -412,35 +797,37 @@ wp_install_zip() {
 
 }
 
-# Usage: install <list-name>
-# Install the items listed in the array variable with the name <list-name> into
-# a directory with the same name placed underneath the directory `wp-content`.
-# For the intended function, <list-name> should be `themes`, `plugins` or
-# `mu-plugins`.
-install() {
+# Usage: install_items <list>
+# Installs the themes, plugins or mu-plugins in <list>, which is themes, plugins
+# or mu_plugins, into the directory with the same name underneath wp-content.
+# See add_item.
+install_items() {
 
 	(
 
-		local type=${1%s}
-		# shellcheck disable=SC2178
-		local -n items=${1//-/_} # Changes mu-plugins to mu_plugins
-		local -a slugs=()
+		# shellcheck disable=SC2178 # The arrays are used by their names
+		local -n sources=${1}_sources kinds=${1}_kinds
+		local dir=${1//_/-} # mu_plugins are installed in mu-plugins
+		local type=${dir%s}
+		local -a batch=()
+		local i
 
-		cd "$wp_path/wp-content/$1"
+		cd "$wp_path/wp-content/$dir"
 
 		# Handle items that need special treatment one by one, and collect
 		# plain slugs and zip URLs for a single batched WP-CLI install.
-		for item in "${items[@]}"; do
-			case "$item" in
-				*.php) curl -OLf "$item" ;;
-				*.git) download_latest_tag "$item" ;;
-				*)     if [[ -f "$item" ]]; then wp_install_zip "$type" "$item"; else slugs+=("$item"); fi ;;
+		for i in "${!sources[@]}"; do
+			case ${kinds[i]} in
+				local) wp_install_zip "$type" "${sources[i]}" ;;
+				git)   download_latest_tag "${sources[i]}" ;;
+				url)   if [[ ${sources[i]} == *.php ]]; then curl -OLf "${sources[i]}"; else batch+=("${sources[i]}"); fi ;;
+				slug)  batch+=("${sources[i]}") ;;
 			esac
 		done
 
 		# Install all collected slugs and URLs in one WP-CLI call
-		if (( ${#slugs[@]} )); then
-			ddev wp "$type" install "${slugs[@]}"
+		if (( ${#batch[@]} )); then
+			ddev wp "$type" install "${batch[@]}"
 		fi
 
 	)
@@ -589,9 +976,29 @@ main() {
 	php=
 	wp=
 	redis=
+	blueprint=
 	destroy=
 	config=
 	shift_n=
+
+	# The blueprint's directory, which its relative paths are relative to,
+	# and the outputs of read_blueprint_item.
+	blueprint_dir=
+	item_name=
+	item_activate=
+
+	# The themes, plugins and mu-plugins to install, in arrays that are used
+	# by their names. See add_item.
+	# shellcheck disable=SC2034
+	themes_sources=() themes_kinds=()
+	# shellcheck disable=SC2034
+	plugins_sources=() plugins_kinds=()
+	# shellcheck disable=SC2034
+	mu_plugins_sources=() mu_plugins_kinds=()
+
+	# The name of the theme to activate, and of the plugins to activate.
+	theme=
+	plugins_to_activate=()
 
 	# Parse the argument list from the command line
 	handle_arguments "$@"
@@ -602,6 +1009,11 @@ main() {
 	# In destroy mode, tear down the site and exit; nothing below applies
 	if [[ $destroy ]]; then
 		destroy_site
+	fi
+
+	# Read the blueprint, if one is given
+	if [[ $blueprint ]]; then
+		handle_blueprint
 	fi
 
 	# Parse config files
@@ -615,10 +1027,19 @@ main() {
 	user=${user:=${email%@*}}
 	password=${password:=$(LC_ALL=C tr -dc 'a-zA-Z0-9!#$%&()*+,-./:;<=>?@[\]_{|}' < /dev/urandom | head -c 16 || true)}
 	language=${language:=en_US}
-	themes=${themes:=}
 	php=${php:=8.5}
 	wp_path="$directory/$dirname"
 	url="https://$name.ddev.site"
+
+	# Add the themes, plugins and mu-plugins given on the command line after
+	# the blueprint's. The last theme given is activated, instead of the theme
+	# the blueprint would have activated.
+	if [[ $themes ]]; then
+		theme=$(theme_to_activate "$themes")
+	fi
+	add_option_items themes "$themes"
+	add_option_items plugins "$plugins"
+	add_option_items mu_plugins "$mu_plugins"
 
 	# Normalize the redis option, which may come from a config file as text
 	case "${redis,,}" in
@@ -643,6 +1064,7 @@ main() {
 		echo "php=$php"
 		echo "wp=$wp"
 		echo "redis=$redis"
+		echo "blueprint=$blueprint"
 		echo "config=$config"
 		echo "wp_path=$wp_path"
 		echo "url=$url"
@@ -654,12 +1076,12 @@ main() {
 	[[ "$name" ]] || die "Error: Missing name of the project." 3
 	[[ "$name" =~ ^[[:alpha:]]([[:alnum:]-]*[[:alnum:]])?$ ]] || die "Invalid name: $name. A DDEV project name must start with a letter and may otherwise only contain letters, digits and hyphens. Use -D/--dirname to name the site directory freely." 11
 	[[ "$dirname" =~ ^[^/]+$ && "$dirname" != "." && "$dirname" != ".." ]] || die "Invalid dirname: $dirname" 20
-	[[ "$title" =~ ^[[:print:]]+$ ]] || die "Invalid title: $title" 4
+	[[ "$title" =~ $title_pattern ]] || die "Invalid title: $title" 4
 	[[ "$email" =~ ^[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}$ ]] || die "Invalid email address: $email" 6
 	[[ $password =~ ^[[:print:]]{12,}$ ]] || die "Invalid password. Must be at least 12 characters." 7
-	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
-	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-5]$ ]] || die "Invalid PHP version: $php" 9
-	[[ -z "$wp" || "$wp" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "Invalid WordPress version: $wp" 17
+	[[ "$language" =~ $language_pattern ]] || die "Invalid language code: $language" 8
+	[[ "$php" =~ $php_pattern ]] || die "Invalid PHP version: $php" 9
+	[[ -z "$wp" || "$wp" =~ $wp_pattern ]] || die "Invalid WordPress version: $wp" 17
 	[[ ! -e "$wp_path/.ddev/config.yaml" ]] || die "A DDEV project already exists in the directory $wp_path." 15
 	[[ ! -e "$wp_path" ]] || die "$wp_path already exists" 13
 	[[ -d "$directory" && -w "$directory" ]] || die "Cannot create $wp_path" 14
@@ -775,31 +1197,26 @@ main() {
 
 	# If no theme is specified, default to WordPress's current default theme,
 	# whose slug is declared among core's default constants.
-	if [[ -z "$themes" ]]; then
-		themes=$(sed -n "s/.*'WP_DEFAULT_THEME', '\([^']*\)'.*/\1/p" wp-includes/default-constants.php)
-		[[ "$themes" ]] || die "Couldn't determine the default theme." 25
+	if [[ -z "$theme" ]]; then
+		theme=$(sed -n "s/.*'WP_DEFAULT_THEME', '\([^']*\)'.*/\1/p" wp-includes/default-constants.php)
+		[[ "$theme" ]] || die "Couldn't determine the default theme." 25
+		add_item themes slug "$theme"
 	fi
-
-	# Get the theme to activate
-	theme=$(theme_to_activate "$themes")
-
-	# Remove duplicates from list of themes and plugins and convert them to
-	# arrays, keeping the original order.
-	make_unique_array themes
-	make_unique_array plugins
-	make_unique_array mu_plugins
 
 	# Create home for "must use" plugins
 	mkdir -p wp-content/mu-plugins/DISABLED
 	cp wp-content/index.php wp-content/mu-plugins
 
-	# Install themes and plugins
-	install themes
-	install plugins
-	install mu-plugins
+	# Install themes, plugins and mu-plugins
+	install_items themes
+	install_items plugins
+	install_items mu_plugins
 
-	# Activate the last listed theme
+	# Activate the theme, and the plugins marked for activation
 	ddev wp theme activate "$theme"
+	if (( ${#plugins_to_activate[@]} )); then
+		ddev wp plugin activate "${plugins_to_activate[@]}"
+	fi
 
 	# Enable Redis as object cache backend: install and activate the Redis
 	# Object Cache plugin, point it to DDEV's Redis service, and enable the
