@@ -281,26 +281,33 @@ help() {
 
 	\e[1mdatabase\e[0m
 		An object with a database to start the site from: a dump of
-		another WordPress site in \e[1mdump\e[0m, and the database server to
-		import it into in \e[1mserver\e[0m. The dump is plain SQL in a .sql file
-		or gzip-compressed SQL in a .sql.gz file, and its tables must
-		have the prefix wp_. A relative path is relative to the
-		blueprint's directory. The server is given as
+		another WordPress site in \e[1mdump\e[0m or a DDEV snapshot of one in
+		\e[1msnapshot\e[0m, but not both, and the database server to import or
+		restore it into in \e[1mserver\e[0m. Its tables must have the prefix
+		wp_. A relative path is relative to the blueprint's
+		directory.
+
+		The dump is plain SQL in a .sql file or gzip-compressed SQL
+		in a .sql.gz file. The snapshot is a file that ddev snapshot
+		made, in any directory, with the name DDEV gave it, which
+		ends with the server it was taken from, as in
+		site-mariadb_11.8.zst. The server is given as
 		mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with
-		a version that DDEV has. If it's omitted, DDEV's default is
-		used.
+		a version that DDEV has. With a snapshot, it's required, and
+		must be the server the snapshot was taken from. With a dump,
+		DDEV's default is used if it's omitted.
 
 		The site keeps the users, settings and active theme and
-		plugins of the dump, but for what is given explicitly: the
-		themes and plugins with \"activate\": true and the theme given
-		with \e[1m-T\e[0m are activated, and a title and a language given
-		replace those of the dump. What mkwp gives a new site by
+		plugins of the database, but for what is given explicitly:
+		the themes and plugins with \"activate\": true and the theme
+		given with \e[1m-T\e[0m are activated, and a title and a language given
+		replace those of the database. What mkwp gives a new site by
 		default, such as a title made from NAME, pretty permalinks
 		and the timezone of the language, is not applied. The user
 		is made an administrator with the email address and
-		password given, and is created if the dump doesn't have it.
-		A dump can hold secrets, such as licence keys and API
-		credentials, which mkwp doesn't remove.
+		password given, and is created if the database doesn't have
+		it. A dump or a snapshot can hold secrets, such as licence
+		keys and API credentials, which mkwp doesn't remove.
 
 	\e[1mwp_cli\e[0m
 		An array of WP-CLI commands, which are run in the given order at
@@ -345,11 +352,12 @@ help() {
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
 		- The files are copied into wp-content.
-		- The dump is imported, if there is one. The old address is
-		  replaced by the site's, also where it's JSON-escaped, the
-		  database is upgraded, the user is made an administrator,
-		  the title and language given are applied, and the rewrite
-		  rules and the object cache are flushed.
+		- The dump is imported, or the snapshot restored, if there
+		  is one. The old address is replaced by the site's, also
+		  where it's JSON-escaped, the database is upgraded, the
+		  user is made an administrator, the title and language
+		  given are applied, and the rewrite rules and the object
+		  cache are flushed.
 		- The theme to activate, and the plugins with
 		  \"activate\": true, are activated.
 		- Redis is enabled as object cache, if it is used.
@@ -581,7 +589,9 @@ check_blueprint() {
 	# Emits an error for each way the value breaks schema, where path is the
 	# value's path in the blueprint. A schema is an object with the JSON type
 	# or types the value may have, under type, the keys an object may have,
-	# under props, the keys it must have, under required, the schema of the
+	# under props, the keys it must have, under required, the pair of keys of
+	# which it must have exactly one, under one_of, the key it must have along
+	# with another, under requires, as {"<other>": "<key>"}, the schema of the
 	# items in an array, under items, and whether an array must have items,
 	# under nonempty. A key whose schema is null is not a known key.
 	def check($schema; $path):
@@ -596,6 +606,15 @@ check_blueprint() {
 		elif $type == "object" then
 			( ($schema.required // [])[] as $key | select(has($key) | not)
 				| "32 \($path | location) has no \"\($key)\"" ),
+			( . as $object | $schema.one_of // empty
+				| map("\"\(.)\"") as $keys
+				| (map(select(. as $key | $object | has($key))) | length) as $count
+				| if $count == 0 then "32 \($path | location) has no \($keys | join(" or "))"
+				elif $count > 1 then "49 \($path | location) has both \($keys | join(" and ")), but may only have one of them"
+				else empty end ),
+			( . as $object | ($schema.requires // {}) | to_entries[]
+				| select((.key as $key | $object | has($key)) and (.value as $key | $object | has($key) | not))
+				| "32 \($path | location) has no \"\(.value)\", which is required with \"\(.key)\"" ),
 			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
 		elif $type == "array" and $schema.nonempty and length == 0 then
 			"39 \($path | location) must not be empty"
@@ -643,8 +662,9 @@ check_blueprint() {
 	}}};
 
 	# database: a dump to import, and the database server to import it into.
-	def database: {type: "object", required: ["dump"], props: {
+	def database: {type: "object", one_of: ["dump", "snapshot"], requires: {snapshot: "server"}, props: {
 		dump: string,
+		snapshot: string,
 		server: string
 	}};
 
@@ -1285,31 +1305,71 @@ timezone_from_locale() {
 
 # Usage: read_blueprint_database
 # Reads the database in the blueprint: the dump to import, which must be plain
-# or gzip-compressed SQL, and the database server to import it into, if one is
-# given. DDEV takes any file whose name ends in .gz for compressed SQL, and
-# imports a file it can't decompress as it is, so the name must end in .sql or
-# .sql.gz. Which versions of a server DDEV has depends on the version of DDEV,
-# so only the form of the server is checked here, and DDEV checks the version.
+# or gzip-compressed SQL, or the DDEV snapshot to restore, and the database
+# server to import or restore it into, which a snapshot must have. DDEV takes
+# any file whose name ends in .gz for compressed SQL, and imports a file it
+# can't decompress as it is, so the name of a dump must end in .sql or .sql.gz.
+# DDEV reads the server a snapshot was taken from in the end of its name, and
+# restores it only into that server, so the name must have it, and it must be
+# the given server. Which versions of a server DDEV has depends on the version
+# of DDEV, so only the form of the server is checked here, and DDEV checks the
+# version.
 read_blueprint_database() {
 
+	# The key is dump or snapshot, since the blueprint has exactly one of them
 	local -a fields
-	read_blueprint fields '.database | .dump, (.server | values)'
-	local dump=${fields[0]} server=${fields[1]-}
+	read_blueprint fields '.database | (if has("dump") then "dump" else "snapshot" end), (.dump // .snapshot), (.server | values)'
+	local key=${fields[0]} file=${fields[1]} server=${fields[2]-}
 
-	if (( ${#fields[@]} > 1 )); then
+	if (( ${#fields[@]} > 2 )); then
 		[[ $server =~ ^(mariadb|mysql):[0-9]+\.[0-9]+$ ]] || die "Invalid blueprint $blueprint: \"$server\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>" 46
 		database_server=$server
 	fi
 
-	local path
-	path=$(blueprint_path "$dump")
-	[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump doesn't exist" 35
-	[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump is a directory, not a .sql or .sql.gz file" 35
-	[[ -r $path ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump can't be read" 35
-	[[ $path == *.sql || $path == *.sql.gz ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump is not a .sql or .sql.gz file" 35
+	local path what
+	path=$(blueprint_path "$file")
+	case $key in
+		dump) what='.sql or .sql.gz file' ;;
+		snapshot) what='DDEV snapshot' ;;
+	esac
+	[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.$key doesn't exist" 35
+	[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.$key is a directory, not a $what" 35
+	[[ -r $path ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.$key can't be read" 35
 
 	# Keep the path without parts such as ./, since messages show it
-	database_dump=$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")
+	path=$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")
+
+	case $key in
+		dump)
+			[[ $path == *.sql || $path == *.sql.gz ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.dump is not a .sql or .sql.gz file" 35
+			database_dump=$path
+			;;
+		snapshot)
+			[[ ${path##*/} =~ (mariadb|mysql|postgres)_([0-9.]+)\.(zst|gz|mbstream|xbstream)$ ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.snapshot is not a DDEV snapshot, whose name ends with the server it was taken from, as in site-mariadb_11.8.zst" 35
+			local taken_from=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}
+			[[ $taken_from == "$server" ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.snapshot was taken from $taken_from, not from $server in .database.server. A snapshot can only be restored into the server it was taken from." 50
+			database_snapshot=$path
+			;;
+	esac
+
+}
+
+# Usage: restore_snapshot
+# Restores the DDEV snapshot in database_snapshot into the site's database
+# server. DDEV mounts the directory of a snapshot outside the project into the
+# database container, which only works for a directory that Docker shares, so
+# the snapshot is copied into the project's own snapshot directory. It keeps
+# its name, from which DDEV reads the server it was taken from. The copy is
+# removed afterwards, since restoring it again would bring back the old site's
+# address.
+restore_snapshot() {
+
+	local copy
+	copy="$wp_path/.ddev/db_snapshots/${database_snapshot##*/}"
+	mkdir -p "$wp_path/.ddev/db_snapshots"
+	cp "$database_snapshot" "$copy"
+	ddev snapshot restore "$copy"
+	rm "$copy"
 
 }
 
@@ -1554,9 +1614,11 @@ main() {
 	# wp-content to copy them into, in arrays with the same indices.
 	copy_sources=() copy_targets=()
 
-	# The database dump to import, if any, and the database server to import
-	# it into, if one is given. See read_blueprint_database.
+	# The database dump to import or the DDEV snapshot to restore, if any, and
+	# the database server to import or restore it into, if one is given. See
+	# read_blueprint_database.
 	database_dump=
+	database_snapshot=
 	database_server=
 
 	# The WP-CLI commands to run at the end. See read_blueprint_wp_cli.
@@ -1781,7 +1843,7 @@ main() {
 		add_item themes slug "$default_theme"
 		last_theme=$default_theme
 	fi
-	if [[ -z $database_dump ]]; then
+	if [[ -z $database_dump && -z $database_snapshot ]]; then
 		theme=${theme:-$last_theme}
 	fi
 
@@ -1799,10 +1861,14 @@ main() {
 		copy_files
 	fi
 
-	# Import the database, if there is one, and make it the site's own
+	# Import the dump or restore the snapshot, if there is one, and make the
+	# database the site's own
 	if [[ $database_dump ]]; then
 		ddev import-db --file="$database_dump"
 		adopt_database "$database_dump"
+	elif [[ $database_snapshot ]]; then
+		restore_snapshot
+		adopt_database "$database_snapshot"
 	fi
 
 	# Activate the theme, if there is one to activate, and the plugins marked

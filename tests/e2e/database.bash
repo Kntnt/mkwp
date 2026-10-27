@@ -2,7 +2,7 @@
 # blueprint without a database, and is then changed the way a user would
 # change a site: it gets another user, a language of its own in the database,
 # another permalink structure, and its address in JSON. Its database is then
-# taken, and other sites are built from it.
+# taken, as a dump and as a DDEV snapshot, and other sites are built from it.
 #
 # Each site in from_a is built by make_site_from_a, from the same blueprint
 # but for the database, and with the same options. The tests that loop over
@@ -13,7 +13,7 @@ fixtures="$run_dir/fixtures/database"
 
 # The sites built by make_site_from_a, each named after the way A's database
 # got there.
-from_a=(dump)
+from_a=(dump snapshot)
 
 # The user that mkwp is given for each site in from_a, who is an editor with
 # another email address and password in site A.
@@ -51,9 +51,20 @@ setup_file() {
 	site_wp a rewrite structure '/%year%/%postname%/'
 	site_wp a option add mkwp_e2e_json "{\"home\":\"${a_url//\//\\/}\"}"
 
-	(cd "$sites_dir/$(site_name a)" && ddev export-db --file="$fixtures/a.sql.gz")
+	local a_dir
+	a_dir="$sites_dir/$(site_name a)"
+	(cd "$a_dir" && ddev export-db --file="$fixtures/a.sql.gz")
+
+	# A snapshot of site A, which has DDEV's default server, since its
+	# blueprint has no database. DDEV names the snapshot after the server.
+	local snapshots server
+	(cd "$a_dir" && ddev snapshot --name=a)
+	snapshots=("$a_dir"/.ddev/db_snapshots/a-*)
+	cp "${snapshots[0]}" "$fixtures/"
+	server=$(cd "$a_dir" && ddev describe -j | jq -r '.raw.database_type + ":" + .raw.database_version')
 
 	make_site_from_a dump '{"dump": "./a.sql.gz", "server": "mariadb:11.4"}'
+	make_site_from_a snapshot "{\"snapshot\": \"./${snapshots[0]##*/}\", \"server\": \"$server\"}"
 
 	# Site defaults, with neither a title nor a language given, and with a
 	# user who is not in A's database. Its blueprint marks a theme.

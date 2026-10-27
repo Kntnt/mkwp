@@ -97,20 +97,39 @@
 			}
 		},
 		"database": {
-			"description": "A database to start the site from: a dump of another WordPress site, whose tables have the prefix wp_. The site keeps the users, settings and active theme and plugins of the dump, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the dump, and themes and plugins with \"activate\": true are activated. A dump can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
+			"description": "A database to start the site from: a dump or a DDEV snapshot of another WordPress site, whose tables have the prefix wp_. It has exactly one of dump and snapshot. The site keeps the users, settings and active theme and plugins of the database, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the database, and themes and plugins with \"activate\": true are activated. A dump or a snapshot can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"dump"
+			"oneOf": [
+				{
+					"required": [
+						"dump"
+					]
+				},
+				{
+					"required": [
+						"snapshot"
+					]
+				}
 			],
+			"dependentRequired": {
+				"snapshot": [
+					"server"
+				]
+			},
 			"properties": {
 				"dump": {
 					"description": "The dump: plain SQL in a .sql file, or gzip-compressed SQL in a .sql.gz file. A relative path is relative to the blueprint's directory, and ~/ is the home directory.",
 					"type": "string",
 					"pattern": "\\.sql(\\.gz)?$"
 				},
+				"snapshot": {
+					"description": "The snapshot: a file made by ddev snapshot, such as one in a site's .ddev/db_snapshots, with the name DDEV gave it, which ends with the server it was taken from, as in site-mariadb_11.8.zst. It can be anywhere. A relative path is relative to the blueprint's directory, and ~/ is the home directory. It needs server.",
+					"type": "string",
+					"pattern": "(mariadb|mysql)_[0-9.]+\\.(zst|gz|mbstream|xbstream)$"
+				},
 				"server": {
-					"description": "The database server to import the dump into, as mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with a version that DDEV has. If omitted, DDEV's default server is used.",
+					"description": "The database server to import the dump into, or to restore the snapshot into, as mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with a version that DDEV has. With a snapshot, it's required, and must be the server the snapshot was taken from. With a dump, DDEV's default server is used if it's omitted.",
 					"type": "string",
 					"pattern": "^(mariadb|mysql):[0-9]+\\.[0-9]+$"
 				}
