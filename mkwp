@@ -979,8 +979,8 @@ read_blueprint_files() {
 		[[ -r $source_path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where.source can't be read" 35
 
 		# shellcheck disable=SC2088 # A literal ~ is meant
-		[[ $target && $target != /* && $target != '~'* ]] || die "Invalid blueprint $blueprint: \"$target\" in $where.target is not a path relative to wp-content" 190
-		target_path=$(wp_content_path "$target") || die "Invalid blueprint $blueprint: \"$target\" in $where.target is outside wp-content" 191
+		[[ $target && $target != /* && $target != '~'* ]] || die "Invalid blueprint $blueprint: \"$target\" in $where.target is not a path relative to wp-content" 37
+		target_path=$(wp_content_path "$target") || die "Invalid blueprint $blueprint: \"$target\" in $where.target is outside wp-content" 38
 
 		copy_sources+=("$source_path")
 		copy_targets+=("$target_path")

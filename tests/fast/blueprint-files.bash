@@ -70,7 +70,7 @@ test_rejects_an_absolute_target() {
 	write_blueprint '{"files": [{"source": "./media", "target": "/var/www/html/wp-content/uploads"}]}'
 	mkdir "$sandbox/blueprint/media"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 190 "Invalid blueprint $blueprint: \"/var/www/html/wp-content/uploads\" in .files[0].target is not a path relative to wp-content"
+	assert_rejected 37 "Invalid blueprint $blueprint: \"/var/www/html/wp-content/uploads\" in .files[0].target is not a path relative to wp-content"
 	assert_nothing_created
 }
 
@@ -78,7 +78,7 @@ test_rejects_a_target_that_escapes_wp_content() {
 	write_blueprint '{"files": [{"source": "./media", "target": "uploads/2024/../../../wp-admin"}]}'
 	mkdir "$sandbox/blueprint/media"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 191 "Invalid blueprint $blueprint: \"uploads/2024/../../../wp-admin\" in .files[0].target is outside wp-content"
+	assert_rejected 38 "Invalid blueprint $blueprint: \"uploads/2024/../../../wp-admin\" in .files[0].target is outside wp-content"
 	assert_nothing_created
 }
 
@@ -86,7 +86,7 @@ test_rejects_a_target_in_the_home_directory() {
 	write_blueprint '{"files": [{"source": "./media", "target": "~/uploads"}]}'
 	mkdir "$sandbox/blueprint/media"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 190 "Invalid blueprint $blueprint: \"~/uploads\" in .files[0].target is not a path relative to wp-content"
+	assert_rejected 37 "Invalid blueprint $blueprint: \"~/uploads\" in .files[0].target is not a path relative to wp-content"
 	assert_nothing_created
 }
 
@@ -94,6 +94,6 @@ test_rejects_an_empty_target() {
 	write_blueprint '{"files": [{"source": "./media", "target": ""}]}'
 	mkdir "$sandbox/blueprint/media"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 190 "Invalid blueprint $blueprint: \"\" in .files[0].target is not a path relative to wp-content"
+	assert_rejected 37 "Invalid blueprint $blueprint: \"\" in .files[0].target is not a path relative to wp-content"
 	assert_nothing_created
 }
