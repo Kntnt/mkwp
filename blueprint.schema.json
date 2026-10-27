@@ -103,6 +103,16 @@
 						"source": {
 							"$ref": "#/$defs/source"
 						},
+						"version": {
+							"description": "The version to install, such as 1.6. Only a slug on WordPress.org can have it.",
+							"type": "string",
+							"pattern": "^[^\\s-]\\S*$"
+						},
+						"ref": {
+							"description": "The tag, branch or commit to check out instead of the latest tag. Only a Git repository can have it.",
+							"type": "string",
+							"pattern": "^[^\\s-]\\S*$"
+						},
 						"activate": {
 							"description": "Whether to activate the theme or plugin. At most one theme may have it.",
 							"type": "boolean"
@@ -110,14 +120,57 @@
 						"note": {
 							"$ref": "#/$defs/note"
 						}
-					}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": [
+									"version"
+								]
+							},
+							"then": {
+								"properties": {
+									"source": {
+										"$ref": "#/$defs/slug"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"required": [
+									"ref"
+								]
+							},
+							"then": {
+								"properties": {
+									"source": {
+										"$ref": "#/$defs/git"
+									}
+								}
+							}
+						}
+					]
 				}
 			]
 		},
 		"source": {
-			"description": "Where a theme or plugin comes from, recognized in this order: a local zip file, if it starts with ./, ../, / or ~/, where a relative path is relative to the blueprint's directory; a Git repository, if it ends with .git, where the latest tag is checked out; a zip file at a URL, if it starts with http:// or https://; and otherwise a slug on WordPress.org.",
+			"description": "Where a theme or plugin comes from, recognized in this order: a local directory or zip file, if it starts with ./, ../, / or ~/, where a relative path is relative to the blueprint's directory; a Git repository, if it ends with .git, where the latest tag or the ref is checked out; a zip file at a URL, if it starts with http:// or https://; and otherwise a slug on WordPress.org.",
 			"type": "string",
 			"pattern": "^(\\./|\\.\\./|/|~/|https?://)|\\.git$|^[a-z0-9_-]+$"
+		},
+		"slug": {
+			"description": "A slug on WordPress.org.",
+			"type": "string",
+			"pattern": "^[a-z0-9_-]+$"
+		},
+		"git": {
+			"description": "A Git repository: a URL that ends with .git and is not a local path.",
+			"type": "string",
+			"pattern": "\\.git$",
+			"not": {
+				"pattern": "^(\\./|\\.\\./|/|~/)"
+			}
 		},
 		"marked": {
 			"description": "A theme or plugin with \"activate\": true.",
@@ -155,9 +208,9 @@
 			]
 		},
 		"mu_plugin_source": {
-			"description": "Where an mu-plugin comes from: the URL of a PHP file.",
+			"description": "Where an mu-plugin comes from: a local PHP file, if it starts with ./, ../, / or ~/, where a relative path is relative to the blueprint's directory, or the URL of a PHP file.",
 			"type": "string",
-			"pattern": "^https?://.+\\.php$"
+			"pattern": "^(\\./|\\.\\./|/|~/|https?://).*\\.php$"
 		}
 	}
 }
