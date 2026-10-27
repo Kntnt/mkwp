@@ -226,6 +226,13 @@ test_rejects_a_site_setting_in_a_configuration_file_with_a_blueprint() {
 	assert_nothing_created
 }
 
+test_rejects_a_wordpress_version_in_the_blueprint_that_no_release_matches() {
+	write_blueprint '{"site": {"wp": "99"}}'
+	run_mkwp -m test@example.com -B "$blueprint" site
+	assert_rejected 19 'No released WordPress version matches: 99'
+	assert_nothing_created
+}
+
 test_rejects_an_invalid_site_setting_even_when_the_command_line_replaces_it() {
 	write_blueprint '{"site": {"php": "9.1"}}'
 	run_mkwp -m test@example.com -V 8.4 -B "$blueprint" site

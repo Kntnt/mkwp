@@ -28,7 +28,7 @@ uses [Semantic Versioning](https://semver.org/).
   - `themes`, `plugins` and `mu-plugins`: put them in a blueprint's `themes`, `plugins` and `mu_plugins`, as arrays, so `plugins = query-monitor,https://example.com/my-plugin.zip` becomes `"plugins": ["query-monitor", "https://example.com/my-plugin.zip"]`. The last theme is still the one activated, unless another is marked with `"activate": true`. A local zip file is given by a path that starts with `./`, `../`, `/` or `~/`, and a relative path is relative to the blueprint.
 
   To keep these settings for every site, as `~/.mkwp` gave them before, put them in a blueprint and name it in `~/.mkwp` with `blueprint = ~/blueprints/default.json`. Each of them can still be given as an option on the command line too.
-- Invalid options are now reported before Docker and DDEV are checked, so a mistyped name, email address, password or other option is reported even when Docker isn't running.
+- Invalid options are now reported before Docker and DDEV are checked, so a mistyped name, email address, password or other option is reported even when Docker isn't running. The WordPress version given with `-W` or in a blueprint is looked up on WordPress.org last of all, before DDEV is touched too, so a version that no release matches, or a failed lookup, no longer leaves a half-built site behind.
 
 ### Fixed
 

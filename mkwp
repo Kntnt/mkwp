@@ -1722,6 +1722,20 @@ main() {
 	[[ ! -e "$wp_path" ]] || die "$wp_path already exists" 13
 	[[ -d "$directory" && -w "$directory" ]] || die "Cannot create $wp_path" 14
 
+	# Resolve the WordPress version, if one is requested, which needs the
+	# network but not DDEV. Derive the core auto-update policy from how
+	# precisely it was given, and resolve any omitted parts to the highest
+	# available release.
+	if [[ "$wp" ]]; then
+		case "$wp" in
+			*.*.*) wp_auto_update=false ;;      # exact x.y.z: pin, no auto-updates
+			*)     wp_auto_update="'minor'" ;;  # x or x.y: only patch (.z) auto-updates
+		esac
+		wp=$(resolve_wp_version "$wp") || exit $?
+	else
+		wp_auto_update="'minor'"
+	fi
+
 	# Check that DDEV is working
 	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
 
@@ -1785,19 +1799,12 @@ main() {
 
 	# Download WordPress without the default themes and plugins, which saves
 	# both download and file synchronization time; themes to use are installed
-	# further down. When a version is requested, derive the core auto-update
-	# policy from how precisely it was given, resolve any omitted parts to the
-	# highest available release, and download that exact version.
+	# further down. When a version is requested, download the exact version it
+	# was resolved to.
 	if [[ "$wp" ]]; then
-		case "$wp" in
-			*.*.*) wp_auto_update=false ;;      # exact x.y.z: pin, no auto-updates
-			*)     wp_auto_update="'minor'" ;;  # x or x.y: only patch (.z) auto-updates
-		esac
-		wp=$(resolve_wp_version "$wp") || exit $?
 		echo "Installing WordPress $wp"
 		ddev wp core download --version="$wp" --locale="$language" --skip-content
 	else
-		wp_auto_update="'minor'"
 		ddev wp core download --locale="$language" --skip-content
 	fi
 

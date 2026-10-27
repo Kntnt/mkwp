@@ -50,3 +50,25 @@ test_rejects_an_invalid_wordpress_version() {
 	assert_rejected 17 'Invalid WordPress version: latest'
 	assert_nothing_created
 }
+
+# A WordPress version is looked up on WordPress.org after every other option
+# is checked, but before Docker and DDEV are.
+test_rejects_a_wordpress_version_that_no_release_matches() {
+	run_mkwp -m test@example.com -W 6.7 site
+	assert_rejected 19 'No released WordPress version matches: 6.7'
+	assert_nothing_created
+}
+
+test_stops_when_the_wordpress_versions_can_not_be_fetched() {
+	wordpress_org_is_unreachable
+	run_mkwp -m test@example.com -W 6.9 site
+	assert_rejected 18 "Couldn't fetch the list of WordPress versions from wordpress.org"
+	assert_nothing_created
+}
+
+test_checks_the_other_options_before_looking_up_the_wordpress_version() {
+	wordpress_org_is_unreachable
+	run_mkwp -m test@example.com -W 6.9 -D .. site
+	assert_rejected 20 'Invalid dirname: ..'
+	assert_nothing_created
+}

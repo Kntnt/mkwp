@@ -6,12 +6,18 @@
 # Docker are hidden from mkwp's PATH. In their place is a stand-in for DDEV
 # that behaves as DDEV does when Docker is not running, and that records each
 # command it is given, so a test can tell whether DDEV was asked to create
-# anything. A test that needs another situation sets it up with the helpers
-# below.
+# anything. The real curl is shadowed by a stand-in that answers for
+# WordPress.org with a fixed list of releases, so the suite needs no network.
+# A test that needs another situation sets it up with the helpers below.
 # =============================================================================
 
+# The releases of WordPress that WordPress.org lists, unless a test says
+# otherwise.
+releases=(6.8 6.8.3 6.9 6.9.4)
+
 # Usage: setup_test
-# Gives the test a sandbox of its own, in which Docker is not running.
+# Gives the test a sandbox of its own, in which Docker is not running and
+# WordPress.org lists the releases above.
 setup_test() {
 
 	sandbox=$(mktemp -d "$run_dir/test.XXXXXX")
@@ -24,6 +30,7 @@ setup_test() {
 	mkwp_path="$sandbox/bin:$mkwp_path"
 
 	docker_is_not_running
+	wordpress_org_lists "${releases[@]}"
 
 }
 
@@ -116,6 +123,35 @@ ddev_has_project() {
 		'list -j') echo '{\"level\":\"info\",\"raw\":[{\"approot\":\"$2\",\"name\":\"$1\",\"status\":\"stopped\"}]}' ;;
 		*) exit 1 ;;
 	esac"
+
+}
+
+# Usage: wordpress_org_lists <version>...
+# Puts a stand-in for curl on mkwp's PATH that answers a request for
+# WordPress.org's list of releases with <version>..., the way its API does, and
+# fails any other request.
+wordpress_org_lists() {
+
+	local version json=
+	for version in "$@"; do
+		json+="${json:+, }\"$version\": \"insecure\""
+	done
+
+	cat > "$sandbox/bin/curl" <<- EOT
+	#!/usr/bin/env bash
+	[[ \$* == *https://api.wordpress.org/core/stable-check/1.0/* ]] || exit 22
+	echo '{$json}'
+	EOT
+	chmod +x "$sandbox/bin/curl"
+
+}
+
+# Usage: wordpress_org_is_unreachable
+# Makes curl fail every request, as it does when it can't resolve a host.
+wordpress_org_is_unreachable() {
+
+	printf '%s\n' '#!/usr/bin/env bash' 'exit 6' > "$sandbox/bin/curl"
+	chmod +x "$sandbox/bin/curl"
 
 }
 
