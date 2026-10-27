@@ -10,6 +10,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 - New `-B` / `--blueprint` option that builds a site from a blueprint: a JSON file that describes the site's title, language, PHP and WordPress versions and Redis setting, and the themes, plugins and mu-plugins to install. A theme or plugin comes from WordPress.org, a Git repository (including a private one over SSH), a URL or a zip file next to the blueprint, and is activated if it's marked with `"activate": true`. Options on the command line take precedence over the blueprint, and the blueprint over the configuration files. mkwp checks the whole blueprint, and every file it refers to, before it touches Docker and DDEV, and stops with an exit status of its own for each kind of error. A blueprint needs `jq`.
 - `blueprint.schema.json`, a JSON Schema for blueprints, lets an editor check and complete a blueprint.
+- A blueprint can pin a theme or plugin from WordPress.org to a `version`, and one from a Git repository to a `ref`: a tag, a branch or a commit, checked out instead of the latest tag. `version` on anything but a WordPress.org slug, and `ref` on anything but a Git repository, make mkwp stop before it touches Docker and DDEV.
+- A theme or plugin in a blueprint can be a directory next to the blueprint, which is copied into the site under its own name, and an mu-plugin can be a PHP file next to the blueprint. Unpublished code can therefore be kept in a blueprint's directory as plain files.
 
 ### Changed
 
