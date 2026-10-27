@@ -10,7 +10,9 @@ readonly mkwp_version='unreleased'
 
 # The patterns that the values of some options must match. The settings in a
 # blueprint's site are checked against the pattern of the option with the
-# same name.
+# same name. blueprint.schema.json has these patterns too, and the ones below
+# and in read_blueprint_item and read_blueprint_database, so that an editor
+# can check a blueprint, and has to change with them.
 readonly title_pattern='^[[:print:]]+$'
 readonly language_pattern='^[[:lower:]]{2}(_[[:upper:]]{2})?$'
 readonly php_pattern='^7\.[0-4]$|^8\.[0-5]$'
@@ -250,12 +252,14 @@ help() {
 		\e[1msource\e[0m, and with \e[1mversion\e[0m, \e[1mref\e[0m, \e[1mactivate\e[0m (true or false) and
 		\e[1mnote\e[0m. \e[1mversion\e[0m is the version to install, and only a slug on
 		WordPress.org may have it. \e[1mref\e[0m is the tag, branch or commit to
-		check out, and only a Git repository may have it. Each item
-		with \"activate\": true is activated, and at most one theme may
-		have it. If no theme has it, the last theme is activated,
-		unless there is a database. Themes and plugins given with \e[1m-T\e[0m
-		and \e[1m-P\e[0m are installed after the blueprint's, and the last theme
-		given with \e[1m-T\e[0m is activated instead of the blueprint's.
+		check out, and only a Git repository may have it. Neither may
+		hold white space or start with a hyphen, which Git would take
+		for an option. Each item with \"activate\": true is activated,
+		and at most one theme may have it. If no theme has it, the
+		last theme is activated, unless there is a database. Themes
+		and plugins given with \e[1m-T\e[0m and \e[1m-P\e[0m are installed after the
+		blueprint's, and the last theme given with \e[1m-T\e[0m is activated
+		instead of the blueprint's.
 
 	\e[1mmu_plugins\e[0m
 		An array of the mu-plugins to install. An item is a source, as
@@ -265,18 +269,25 @@ help() {
 	\e[1mfiles\e[0m
 		An array of the files and directories to copy into wp-content,
 		such as the media that a database refers to. An item is an
-		object with a local file or directory in \e[1msource\e[0m, the directory
-		to copy it into in \e[1mtarget\e[0m, and \e[1mnote\e[0m. A relative source is
-		relative to the blueprint's directory. The target is relative
-		to wp-content, as in \"uploads/2024/01\", and is created if it's
-		missing. It must not be absolute or start with ~, and its ..
-		parts must not lead out of wp-content. A file keeps its name,
-		and replaces a file with the same name. A directory's contents
-		are merged with what the target already has. Example:
+		object with a local file or directory in \e[1msource\e[0m, where to
+		copy it in \e[1mtarget\e[0m, and \e[1mnote\e[0m. A relative source is relative
+		to the blueprint's directory. The target is relative to
+		wp-content. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. Missing directories in
+		it are created.
+
+		As with cp, the target of a file is the path of the copy, so
+		the copy can get a new name, as in \"uploads/2024/01/logo.png\",
+		and replaces a file with the same path. A target that ends
+		with /, or is a directory that already exists, is the
+		directory to copy the file into under its own name. The
+		target of a directory is the directory to merge its contents
+		into. Example:
 
 			\"files\": [
 			  { \"source\": \"./media\", \"target\": \"uploads\" },
-			  { \"source\": \"./fonts/brand.woff2\", \"target\": \"fonts\" }
+			  { \"source\": \"./fonts/brand.woff2\", \"target\": \"fonts/\" },
+			  { \"source\": \"./logo.png\", \"target\": \"uploads/2024/01/client-logo.png\" }
 			]
 
 	\e[1mdatabase\e[0m
@@ -301,13 +312,18 @@ help() {
 		plugins of the database, but for what is given explicitly:
 		the themes and plugins with \"activate\": true and the theme
 		given with \e[1m-T\e[0m are activated, and a title and a language given
-		replace those of the database. What mkwp gives a new site by
+		replace those of the database. Without a language given, the
+		language pack of the database's language is installed, so
+		that the site shows in it. What mkwp gives a new site by
 		default, such as a title made from NAME, pretty permalinks
 		and the timezone of the language, is not applied. The user
 		is made an administrator with the email address and
 		password given, and is created if the database doesn't have
-		it. A dump or a snapshot can hold secrets, such as licence
-		keys and API credentials, which mkwp doesn't remove.
+		it. If the email address belongs to another user in the
+		database, mkwp stops, since WordPress can't give two users
+		the same email address. A dump or a snapshot can hold
+		secrets, such as licence keys and API credentials, which
+		mkwp doesn't remove.
 
 	\e[1mwp_cli\e[0m
 		An array of WP-CLI commands, which are run in the given order at
@@ -335,10 +351,14 @@ help() {
 		\e[1mref\e[0m is checked out, or else the latest tag, or the default
 		branch if there is no tag.
 
-		A URL, which starts with http:// or https://, to a zip file.
+		A URL, which starts with http:// or https://, to a zip file,
+		which is named after the directory in it, as a local one is.
 
 		A slug on WordPress.org, which is anything else. The version
-		in \e[1mversion\e[0m is installed, or else the latest one.
+		in \e[1mversion\e[0m is installed, or else the latest one. A slug has
+		only lower-case letters, digits, - and _, so a local path
+		written without ./ in front is reported before anything is
+		made.
 
 	The source of an mu-plugin is a PHP file, given by a local path,
 	which starts with ./, ../, / or ~/ and is relative to the
@@ -356,8 +376,9 @@ help() {
 		  is one. The old address is replaced by the site's, also
 		  where it's JSON-escaped, the database is upgraded, the
 		  user is made an administrator, the title and language
-		  given are applied, and the rewrite rules and the object
-		  cache are flushed.
+		  given are applied, or else the language pack of the
+		  database's language is installed, and the rewrite rules
+		  and the object cache are flushed.
 		- The theme to activate, and the plugins with
 		  \"activate\": true, are activated.
 		- Redis is enabled as object cache, if it is used.
@@ -367,8 +388,7 @@ help() {
 \e[1mDEPENDENCY\e[0m
 	This command requires that a Docker provider is installed and running
 	on your system and that DDEV is properly installed and in your path.
-	A blueprint also requires jq, and a blueprint with a local zip file
-	requires unzip." | less -R
+	A blueprint also requires jq." | less -R
 
 }
 
@@ -459,9 +479,9 @@ handle_config_files() {
 
 	# Read ~/.mkwp, which is created if it doesn't exist
 	if [[ ! -e ~/.mkwp ]]; then
-		touch ~/.mkwp || die "Couldn't create ~/.mkwp" 12
+		touch ~/.mkwp || die "Couldn't create ~/.mkwp" 10
 	fi
-	[[ -r ~/.mkwp ]] || die "Couldn't read ~/.mkwp" 12
+	[[ -r ~/.mkwp ]] || die "Couldn't read ~/.mkwp" 10
 	# shellcheck disable=SC2088 # The label is meant to show ~
 	read_config_file ~/.mkwp '~/.mkwp' "$HOME"
 
@@ -539,15 +559,18 @@ handle_blueprint() {
 	# Relative paths in the blueprint are relative to its own directory
 	blueprint_dir=$(cd "$(dirname "$blueprint")" && pwd -P)
 
-	# Read each key the blueprint has with the function named read_blueprint_
-	# followed by the key, if there is one. Keys such as note need no reading.
+	# Read each key the blueprint has. Keys such as note need no reading.
 	local key
 	local -a keys
 	read_blueprint keys 'keys_unsorted[]'
 	for key in "${keys[@]}"; do
-		if declare -F "read_blueprint_$key" > /dev/null; then
-			"read_blueprint_$key"
-		fi
+		case $key in
+			site)                          read_blueprint_site ;;
+			themes | plugins | mu_plugins) read_blueprint_items "$key" ;;
+			files)                         read_blueprint_files ;;
+			database)                      read_blueprint_database ;;
+			wp_cli)                        read_blueprint_wp_cli ;;
+		esac
 	done
 
 }
@@ -585,41 +608,45 @@ check_blueprint() {
 	def with_article:
 		if . == "null" then . elif test("^[aeiou]") then "an \(.)" else "a \(.)" end;
 
-	# Usage: check(schema; path)
+	# Usage: check(schema; path; status)
 	# Emits an error for each way the value breaks schema, where path is the
 	# value's path in the blueprint. A schema is an object with the JSON type
 	# or types the value may have, under type, the keys an object may have,
 	# under props, the keys it must have, under required, the pair of keys of
 	# which it must have exactly one, under one_of, the key it must have along
 	# with another, under requires, as {"<other>": "<key>"}, the schema of the
-	# items in an array, under items, and whether an array must have items,
-	# under nonempty. A key whose schema is null is not a known key.
-	def check($schema; $path):
+	# items in an array, under items, whether an array must have items, under
+	# nonempty, and the exit status of every error in the value and inside
+	# it, under status. status is the exit status that a schema around the
+	# value gives, or null. A key whose schema is null is not a known key.
+	def check($schema; $path; $status):
 		type as $type
 		| ([$schema.type] | flatten) as $types
-		| if $schema == null then
-			"30 \($path | location) is not a known key"
+		| ($schema.status // $status) as $status
+		| def error($kind; $message): "\($status // $kind) \($path | location) \($message)";
+		if $schema == null then
+			error(30; "is not a known key")
 		elif $types | any(. == $type) | not then
-			"31 \($path | location) must be \($types | map(with_article) | join(" or ")), not \($type | with_article)"
+			error(31; "must be \($types | map(with_article) | join(" or ")), not \($type | with_article)")
 		elif $type == "string" and (explode | any(. == 0)) then
-			"31 \($path | location) must not contain a NUL character"
+			error(33; "must not contain a NUL character")
 		elif $type == "object" then
 			( ($schema.required // [])[] as $key | select(has($key) | not)
-				| "32 \($path | location) has no \"\($key)\"" ),
+				| error(32; "has no \"\($key)\"") ),
 			( . as $object | $schema.one_of // empty
 				| map("\"\(.)\"") as $keys
 				| (map(select(. as $key | $object | has($key))) | length) as $count
-				| if $count == 0 then "32 \($path | location) has no \($keys | join(" or "))"
-				elif $count > 1 then "49 \($path | location) has both \($keys | join(" and ")), but may only have one of them"
+				| if $count == 0 then error(52; "has no \($keys | join(" or "))")
+				elif $count > 1 then error(49; "has both \($keys | join(" and ")), but may only have one of them")
 				else empty end ),
 			( . as $object | ($schema.requires // {}) | to_entries[]
 				| select((.key as $key | $object | has($key)) and (.value as $key | $object | has($key) | not))
-				| "32 \($path | location) has no \"\(.value)\", which is required with \"\(.key)\"" ),
-			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
+				| error(51; "has no \"\(.value)\", which is required with \"\(.key)\"") ),
+			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]; $status) )
 		elif $type == "array" and $schema.nonempty and length == 0 then
-			"39 \($path | location) must not be empty"
+			error(33; "must not be empty")
 		elif $type == "array" then
-			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index])
+			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index]; $status)
 		else
 			empty
 		end;
@@ -653,23 +680,25 @@ check_blueprint() {
 		note: note
 	}};
 
-	# files: each item is a local file or directory to copy, and the
-	# directory underneath wp-content to copy it into.
+	# files: each item is a local file or directory to copy, and the path
+	# underneath wp-content to copy it to.
 	def files: {type: "array", items: {type: "object", required: ["source", "target"], props: {
 		source: string,
 		target: string,
 		note: note
 	}}};
 
-	# database: a dump to import, and the database server to import it into.
+	# database: a dump to import or a DDEV snapshot to restore, and the database
+	# server to import or restore it into.
 	def database: {type: "object", one_of: ["dump", "snapshot"], requires: {snapshot: "server"}, props: {
 		dump: string,
 		snapshot: string,
 		server: string
 	}};
 
-	# wp_cli: each command is an array of the arguments to wp.
-	def wp_cli: {type: "array", items: {type: "array", nonempty: true, items: string}};
+	# wp_cli: each command is an array of the arguments to wp. Every error in
+	# it has the same exit status.
+	def wp_cli: {type: "array", status: 39, items: {type: "array", nonempty: true, items: string}};
 
 	# The blueprint itself.
 	def blueprint: {type: "object", props: {
@@ -684,13 +713,20 @@ check_blueprint() {
 		wp_cli: wp_cli
 	}};
 
-	first(check(blueprint; []))
+	first(check(blueprint; []; null))
 	JQ
 
 	local error
-	error=$(jq -r "$program" < "$blueprint" 2>&1) || die "Couldn't check the blueprint $blueprint: $error" 29
-	[[ -z $error ]] || die "Invalid blueprint $blueprint: ${error#* }" "${error%% *}"
+	error=$(jq -r "$program" < "$blueprint" 2>&1) || die "Couldn't check the blueprint $blueprint: $error" 53
+	[[ -z $error ]] || invalid_blueprint "${error#* }" "${error%% *}"
 
+}
+
+# Usage: invalid_blueprint <message> <status>
+# Stops mkwp with the exit status <status> and a message that says that the
+# blueprint is invalid, and why, in <message>.
+invalid_blueprint() {
+	die "Invalid blueprint $blueprint: $1" "$2"
 }
 
 # Usage: read_blueprint <array> <filter>
@@ -728,7 +764,7 @@ read_blueprint_site() {
 			wp)       pattern=$wp_pattern what='WordPress version' ;;
 			redis)    pattern='^(true|false)$' what='setting for Redis' ;;
 		esac
-		[[ $value =~ $pattern ]] || die "Invalid blueprint $blueprint: \"$value\" in .site.$key is not a valid $what" 33
+		[[ $value =~ $pattern ]] || invalid_blueprint "\"$value\" in .site.$key is not a valid $what" 33
 
 		# An option given on the command line takes precedence
 		if [[ -z ${!key} ]]; then
@@ -739,65 +775,27 @@ read_blueprint_site() {
 
 }
 
-# Usage: read_blueprint_themes
-# Reads the themes in the blueprint. The theme marked with "activate": true is
-# the one to activate. The last theme is noted too, since it is activated if
-# none is marked and there is no database.
-read_blueprint_themes() {
+# Usage: read_blueprint_items <list>
+# Reads the themes, plugins or mu-plugins in the blueprint's <list>, which is
+# themes, plugins or mu_plugins. See read_blueprint_item.
+read_blueprint_items() {
 
 	local -a indices
-	read_blueprint indices '.themes | keys[]'
+	read_blueprint indices ".$1 | keys[]"
 
 	local i
 	for i in "${indices[@]}"; do
-		read_blueprint_item themes "$i"
-		if [[ $item_activate == true ]]; then
-			[[ -z $theme ]] || die "Invalid blueprint $blueprint: .themes has more than one theme with \"activate\": true" 36
-			theme=$item_name
-		fi
-		last_theme=$item_name
-	done
-
-}
-
-# Usage: read_blueprint_plugins
-# Reads the plugins in the blueprint, and notes those marked with
-# "activate": true for activation.
-read_blueprint_plugins() {
-
-	local -a indices
-	read_blueprint indices '.plugins | keys[]'
-
-	local i
-	for i in "${indices[@]}"; do
-		read_blueprint_item plugins "$i"
-		if [[ $item_activate == true ]]; then
-			plugins_to_activate+=("$item_name")
-		fi
-	done
-
-}
-
-# Usage: read_blueprint_mu_plugins
-# Reads the mu-plugins in the blueprint.
-read_blueprint_mu_plugins() {
-
-	local -a indices
-	read_blueprint indices '.mu_plugins | keys[]'
-
-	local i
-	for i in "${indices[@]}"; do
-		read_blueprint_item mu_plugins "$i"
+		read_blueprint_item "$1" "$i"
 	done
 
 }
 
 # Usage: read_blueprint_item <list> <index>
 # Reads item number <index> in the blueprint's <list>, which is themes, plugins
-# or mu_plugins, checks its source, and adds it to <list>. Sets the global
-# variable item_name to the name the theme or plugin is activated by, and the
-# global variable item_activate to true if the item is marked with
-# "activate": true.
+# or mu_plugins, checks its source, and adds it to <list>. The theme marked
+# with "activate": true is the one to activate, and the last theme is noted
+# too, since it is activated if none is marked and there is no database. The
+# plugins marked with "activate": true are noted for activation.
 read_blueprint_item() {
 
 	local list=$1
@@ -806,88 +804,166 @@ read_blueprint_item() {
 	# An item is a source, or an object with a source
 	local -a fields
 	read_blueprint fields "$where | if type == \"string\" then {source: .} else . end | .source, .activate == true, has(\"version\"), has(\"ref\"), .version // .ref // \"\""
-	local source=${fields[0]}
-	item_activate=${fields[1]}
-	local has_version=${fields[2]} has_ref=${fields[3]} pin=${fields[4]}
-	item_name=
+	local source=${fields[0]} activate=${fields[1]} has_version=${fields[2]} has_ref=${fields[3]} pin=${fields[4]}
 
-	local kind path=
-	kind=$(source_kind "$source")
+	# A local source starts with ./, ../, / or ~/, and must be something that
+	# mkwp can read. A local mu-plugin must be a file.
+	local path='' what=''
+	# shellcheck disable=SC2088 # A literal ~/ is meant
+	case $source in
+		./* | ../* | /* | '~/'*)
+			path=$(blueprint_path "$source")
+			if [[ $list == mu_plugins ]]; then
+				what='PHP file'
+			fi
+			check_local_path "$path" "$source" "$where" "$what"
+			;;
+	esac
+
+	local kind
+	kind=$(source_kind "$list" "$source" "$path")
 
 	# Only a slug on WordPress.org can be pinned to a version, and only a Git
 	# repository to a ref, so an item has at most one of them, in pin
 	if [[ $has_version == true ]]; then
-		[[ $kind == slug ]] || die "Invalid blueprint $blueprint: $where has a version, but only a slug on WordPress.org can have one" 44
-		[[ $pin =~ $pin_pattern ]] || die "Invalid blueprint $blueprint: \"$pin\" in $where.version is not a valid version" 33
+		[[ $kind == slug ]] || invalid_blueprint "$where has a version, but only a slug on WordPress.org can have one" 44
+		[[ $pin =~ $pin_pattern ]] || invalid_blueprint "\"$pin\" in $where.version is not a valid version" 33
 	fi
 	if [[ $has_ref == true ]]; then
-		[[ $kind == git ]] || die "Invalid blueprint $blueprint: $where has a ref, but only a Git repository can have one" 45
-		[[ $pin =~ $pin_pattern ]] || die "Invalid blueprint $blueprint: \"$pin\" in $where.ref is not a valid Git ref" 33
-	fi
-
-	# A local source must be something that mkwp can read
-	if [[ $kind == local ]]; then
-		path=$(blueprint_path "$source")
-		[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where doesn't exist" 35
-		[[ -r $path && ( -x $path || ! -d $path ) ]] || die "Invalid blueprint $blueprint: \"$source\" in $where can't be read" 35
+		[[ $kind == git ]] || invalid_blueprint "$where has a ref, but only a Git repository can have one" 45
+		[[ $pin =~ $pin_pattern ]] || invalid_blueprint "\"$pin\" in $where.ref is not a valid Git ref" 33
 	fi
 
 	case $list:$kind in
 
 		# An mu-plugin is a PHP file, local or downloaded from a URL
 		mu_plugins:*)
-			[[ $kind =~ ^(local|url)$ && $source == *.php ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is neither a local PHP file nor the URL of one" 34
-			[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is a directory, not a PHP file" 35
-			source=${path:-$source}
+			[[ $kind =~ ^(php|url)$ && $source == *.php ]] || invalid_blueprint "\"$source\" in $where is neither a local PHP file nor the URL of one" 34
 			;;
 
-		# A local theme or plugin is a directory, which is named after
-		# itself, or a zip file, which is named after the directory it
-		# unpacks into
-		*:local)
-			if [[ -d $path ]]; then
-				path=$(cd "$path" && pwd)
-				item_name=${path##*/}
-				kind=directory
-			else
-				command -v unzip > /dev/null || die "mkwp needs unzip to read \"$source\" in the blueprint $blueprint. Install unzip and try again." 27
-				item_name=$(zip_name "$path") || die "Invalid blueprint $blueprint: \"$source\" in $where is not a zip file" 35
-			fi
-			source=$path
+		# A directory is copied under its own name, so it's kept without a /
+		# at the end
+		*:directory)
+			path=$(cd "$path" && pwd)
 			;;
 
-		# A theme or plugin from a Git repository or a URL is named after
-		# the last part of the source
-		*:git | *:url)
-			item_name=$(source_name "$source")
-			;;
-
-		# Anything else is a slug on WordPress.org, which is also the name
+		# A slug on WordPress.org is what is left when a source is nothing
+		# else, so it's checked to be one
 		*:slug)
-			[[ $source =~ ^[[:lower:][:digit:]_-]+$ ]] || die "Invalid blueprint $blueprint: \"$source\" in $where is not a WordPress.org slug. A local path must start with ./, ../, / or ~/." 34
-			item_name=$source
+			[[ $source =~ ^[[:lower:][:digit:]_-]+$ ]] || invalid_blueprint "\"$source\" in $where is not a WordPress.org slug. A local path must start with ./, ../, / or ~/." 34
 			;;
 
 	esac
 
-	add_item "$list" "$kind" "$source" "$pin"
+	add_item "$list" "$kind" "${path:-$source}" "$pin"
+
+	case $list:$activate in
+		themes:true)
+			[[ -z $theme_index ]] || invalid_blueprint ".themes has more than one theme with \"activate\": true" 36
+			theme_index=$item_index
+			;;
+		plugins:true)
+			plugins_to_activate+=("$item_index")
+			;;
+	esac
+	if [[ $list == themes ]]; then
+		last_theme_index=$item_index
+	fi
 
 }
 
-# Usage: source_kind <source>
-# Echoes what the theme, plugin or mu-plugin source <source> in a blueprint is,
-# tried in this order: a local path (local), a Git repository (git), a URL
-# (url) or a slug on WordPress.org (slug).
-source_kind() {
+# Usage: read_blueprint_files
+# Reads the files in the blueprint, and checks that each source exists and can
+# be read, and that each target is a path underneath wp-content. Adds them to
+# copy_sources and copy_targets. See copy_files.
+read_blueprint_files() {
 
-	# shellcheck disable=SC2088 # A literal ~/ is meant
-	case $1 in
-		./* | ../* | /* | '~/'*) echo local ;;
-		*.git)                   echo git ;;
-		http://* | https://*)    echo url ;;
-		*)                       echo slug ;;
+	local -a entries
+	read_blueprint entries '.files[] | .source, .target'
+
+	local i source target source_path target_path where
+	for (( i = 0; i < ${#entries[@]}; i += 2 )); do
+
+		source=${entries[i]}
+		target=${entries[i + 1]}
+		where=".files[$(( i / 2 ))]"
+
+		source_path=$(blueprint_path "$source")
+		check_local_path "$source_path" "$source" "$where.source"
+
+		# shellcheck disable=SC2088 # A literal ~ is meant
+		[[ $target && $target != /* && $target != '~'* ]] || invalid_blueprint "\"$target\" in $where.target is not a path relative to wp-content" 37
+		target_path=$(wp_content_path "$target") || invalid_blueprint "\"$target\" in $where.target is outside wp-content" 38
+
+		# A target that ends with /, or with a . or .. part, is a directory,
+		# which a file is copied into under its own name. It keeps a / at
+		# the end, and wp-content itself is ./
+		if [[ $target =~ (^|/)(\.\.?)?$ ]]; then
+			target_path=${target_path:-.}/
+		fi
+
+		copy_sources+=("$source_path")
+		copy_targets+=("$target_path")
+
+	done
+
+}
+
+# Usage: read_blueprint_database
+# Reads the database in the blueprint: the dump to import, which must be plain
+# or gzip-compressed SQL, or the DDEV snapshot to restore, and the database
+# server to import or restore it into, which a snapshot must have. Sets
+# database_kind to dump or snapshot, database_file to the file, and
+# database_server to the server, if one is given. DDEV takes any file whose
+# name ends in .gz for compressed SQL, and imports a file it can't decompress
+# as it is, so the name of a dump must end in .sql or .sql.gz. DDEV reads the
+# server a snapshot was taken from in the end of its name, and restores it
+# only into that server, so the name must have it, and it must be the given
+# server. Which versions of a server DDEV has depends on the version of DDEV,
+# so only the form of the server is checked here, and DDEV checks the version.
+read_blueprint_database() {
+
+	# The database has exactly one of dump and snapshot
+	local -a fields
+	read_blueprint fields '.database | (if has("dump") then "dump" else "snapshot" end), (.dump // .snapshot), (.server | values)'
+	database_kind=${fields[0]}
+	local file=${fields[1]} where=.database.${fields[0]}
+
+	if (( ${#fields[@]} > 2 )); then
+		[[ ${fields[2]} =~ ^(mariadb|mysql):[0-9]+\.[0-9]+$ ]] || invalid_blueprint "\"${fields[2]}\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>" 46
+		database_server=${fields[2]}
+	fi
+
+	local what taken_from
+	case $database_kind in
+		dump)
+			what='.sql or .sql.gz file'
+			[[ $file == *.sql || $file == *.sql.gz ]] || invalid_blueprint "\"$file\" in $where is not a $what" 35
+			;;
+		snapshot)
+			what='DDEV snapshot'
+			[[ ${file##*/} =~ (mariadb|mysql)_([0-9.]+)\.(zst|gz|mbstream|xbstream)$ ]] || invalid_blueprint "\"$file\" in $where is not a DDEV snapshot, whose name ends with the server it was taken from, as in site-mariadb_11.8.zst" 35
+			taken_from=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}
+			[[ $taken_from == "$database_server" ]] || invalid_blueprint "\"$file\" in $where was taken from $taken_from, not from $database_server in .database.server. A snapshot can only be restored into the server it was taken from." 50
+			;;
 	esac
 
+	local path
+	path=$(blueprint_path "$file")
+	check_local_path "$path" "$file" "$where" "$what"
+
+	# Keep the path without parts such as ./, since messages show it
+	database_file=$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")
+
+}
+
+# Usage: read_blueprint_wp_cli
+# Reads the WP-CLI commands in the blueprint. Bash has no arrays of arrays, so
+# the arguments of all the commands are kept one after another in
+# wp_cli_args, and the number of arguments of each command in wp_cli_lengths.
+read_blueprint_wp_cli() {
+	read_blueprint wp_cli_args '.wp_cli[][]'
+	read_blueprint wp_cli_lengths '.wp_cli[] | length'
 }
 
 # Usage: blueprint_path <path>
@@ -905,24 +981,93 @@ blueprint_path() {
 
 }
 
+# Usage: check_local_path <path> <value> <where> [<what>]
+# Checks that the local file or directory <path>, which <value> at <where> in
+# the blueprint names, exists and can be read. If <what> is given, such as PHP
+# file, <path> must be such a file, and not a directory.
+check_local_path() {
+
+	local path=$1 value=$2 where=$3 what=${4:-}
+
+	[[ $value && -e $path ]] || invalid_blueprint "\"$value\" in $where doesn't exist" 35
+	[[ -z $what || ! -d $path ]] || invalid_blueprint "\"$value\" in $where is a directory, not a $what" 35
+	[[ -r $path && ( -x $path || ! -d $path ) ]] || invalid_blueprint "\"$value\" in $where can't be read" 35
+
+}
+
+# Usage: source_kind <list> <source> <path>
+# Echoes how a theme, plugin or mu-plugin in <list>, which is themes, plugins
+# or mu_plugins, is fetched from <source>: by copying a local directory
+# (directory), by installing a local zip file (zip), by copying an mu-plugin's
+# local PHP file (php), from a Git repository (git), from a URL (url), or from
+# WordPress.org (slug). <path> is the local file or directory that <source>
+# names, or empty if <source> isn't local. A blueprint and the options -T, -P
+# and -M tell a local source by rules of their own, so the caller does. See
+# read_blueprint_item and add_option_items.
+source_kind() {
+
+	if [[ -d $3 ]]; then
+		echo directory
+	elif [[ $3 && $1 == mu_plugins ]]; then
+		echo php
+	elif [[ $3 ]]; then
+		echo zip
+	elif [[ $2 == *.git ]]; then
+		echo git
+	elif [[ $2 == http://* || $2 == https://* ]]; then
+		echo url
+	else
+		echo slug
+	fi
+
+}
+
+# Usage: wp_content_path <path>
+# Echoes the relative <path> without empty parts and . parts, and with each ..
+# part taking away the part before it, or nothing if that leaves no part, which
+# is wp-content itself. Fails if a .. part leads out of wp-content. The path is
+# only read, not looked up, so a symbolic link in it is not followed.
+wp_content_path() {
+
+	local rest=$1 part
+	local -a parts=()
+
+	while [[ $rest ]]; do
+		part=${rest%%/*}
+		if [[ $rest == */* ]]; then rest=${rest#*/}; else rest=; fi
+		case $part in
+			'' | .) ;;
+			..) (( ${#parts[@]} )) || return 1; unset 'parts[-1]' ;;
+			*)  parts+=("$part") ;;
+		esac
+	done
+
+	local IFS=/
+	echo "${parts[*]}"
+
+}
+
 # Usage: add_item <list> <kind> <source> [<pin>]
 # Adds a theme, plugin or mu-plugin to <list>, which is themes, plugins or
 # mu_plugins, unless <list> already has <source>. <kind> says how it's fetched
-# from <source>: as a local zip file, or as an mu-plugin's local PHP file
-# (local), by copying a local directory (directory), from a Git repository
-# (git), from a URL (url) or from WordPress.org (slug). <pin> is the version
-# to install from WordPress.org, or the ref to check out from Git, if any.
-# <list> is kept in three arrays with the same indices, <list>_sources,
-# <list>_kinds and <list>_pins.
+# from <source>. See source_kind. <pin> is the version to install from
+# WordPress.org, or the ref to check out from Git, if any. <list> is kept in
+# three arrays with the same indices, <list>_sources, <list>_kinds and
+# <list>_pins, and a fourth, <list>_names, which install_items fills in. Sets
+# the global variable item_index to the index of <source> in <list>.
 add_item() {
 
 	local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins
-	local existing
+	local i
 
-	for existing in "${sources[@]}"; do
-		[[ $existing != "$3" ]] || return 0
+	for i in "${!sources[@]}"; do
+		if [[ ${sources[i]} == "$3" ]]; then
+			item_index=$i
+			return 0
+		fi
 	done
 
+	item_index=${#sources[@]}
 	sources+=("$3")
 	kinds+=("$2")
 	pins+=("${4:-}")
@@ -931,14 +1076,13 @@ add_item() {
 
 # Usage: add_option_items <list> <items>
 # Adds the comma-separated <items>, given with -T, -P or -M, to <list>, which is
-# themes, plugins or mu_plugins. An item is fetched by the rules these options
-# have always had: from a Git repository if it ends with .git, as a local zip
-# file if there is such a file, from a URL if it starts with http:// or
-# https://, and from WordPress.org otherwise. A relative path is relative to
-# the current directory.
+# themes, plugins or mu_plugins, as add_item does. An item is local by the
+# rules these options have always had: if it doesn't end with .git, and there
+# is such a file, which is relative to the current directory if the path is
+# relative. See source_kind.
 add_option_items() {
 
-	local list=$1 item kind
+	local list=$1 item path
 	local -a items=()
 	IFS=',' read -r -a items <<< "$2"
 
@@ -948,31 +1092,20 @@ add_option_items() {
 			item=$PWD/$item
 		fi
 
-		if [[ $item == *.git ]]; then
-			kind=git
-		elif [[ -f $item ]]; then
-			kind=local
-		elif [[ $item == http://* || $item == https://* ]]; then
-			kind=url
-		else
-			kind=slug
+		path=
+		if [[ $item != *.git && -f $item ]]; then
+			path=$item
 		fi
 
-		add_item "$list" "$kind" "$item"
+		add_item "$list" "$(source_kind "$list" "$item" "$path")" "$item"
 
 	done
 
 }
 
-# Usage: theme_to_activate <theme-list>
-# Echo the slug of the last theme in the list of themes <theme-list>.
-theme_to_activate() {
-	source_name "${1##*,}"
-}
-
 # Usage: source_name <source>
-# Echoes the name of a theme or plugin from <source>, which is the last part of
-# its path or URL, without its suffix.
+# Echoes the name of a theme or plugin from the Git repository <source>, which
+# is the last part of its URL, without its suffix.
 source_name() {
 
 	(
@@ -984,19 +1117,6 @@ source_name() {
 		echo "${1//+(*\/|.*)}"
 
 	)
-
-}
-
-# Usage: zip_name <zip-file>
-# Echoes the name of the directory that the theme or plugin in <zip-file>
-# unpacks into, which is the top directory of the first entry in the file.
-# Fails if <zip-file> is not a zip file.
-zip_name() {
-
-	local entries
-	entries=$(unzip -Z1 "$1" 2> /dev/null) || return 1
-	entries=${entries%%$'\n'*}
-	echo "${entries%%/*}"
 
 }
 
@@ -1120,117 +1240,118 @@ copy_into_site() {
 
 # Usage: install_items <list>
 # Installs the themes, plugins or mu-plugins in <list>, which is themes, plugins
-# or mu_plugins, into the directory with the same name underneath wp-content.
-# See add_item.
+# or mu_plugins, into the directory with the same name underneath wp-content,
+# and sets the name that WordPress lists each theme or plugin by, and activates
+# it by, in <list>_names. See add_item.
+# shellcheck disable=SC2034 # The names are used by the array's name
 install_items() {
 
-	(
+	# shellcheck disable=SC2178 # The arrays are used by their names
+	local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins names=${1}_names
+	local dir=${1//_/-} # mu_plugins are installed in mu-plugins
+	local type=${dir%s}
+	local -a batch=()
+	local i
 
-		# shellcheck disable=SC2178 # The arrays are used by their names
-		local -n sources=${1}_sources kinds=${1}_kinds pins=${1}_pins
-		local dir=${1//_/-} # mu_plugins are installed in mu-plugins
-		local type=${dir%s}
-		local -a batch=()
-		local i
+	cd "$wp_path/wp-content/$dir"
 
-		cd "$wp_path/wp-content/$dir"
-
-		# Handle items that need special treatment one by one, and collect
-		# plain slugs and zip URLs for a single batched WP-CLI install. A
-		# version applies to every slug in a WP-CLI install, so a slug with a
-		# version is installed on its own.
-		for i in "${!sources[@]}"; do
-			case ${kinds[i]} in
-				local)     if [[ $type == mu-plugin ]]; then copy_into_site "${sources[i]}"; else wp_install_zip "$type" "${sources[i]}"; fi ;;
-				directory) copy_into_site "${sources[i]}" ;;
-				git)       download_from_git "${sources[i]}" "${pins[i]}" ;;
-				url)       if [[ ${sources[i]} == *.php ]]; then curl -OLf "${sources[i]}"; else batch+=("${sources[i]}"); fi ;;
-				slug)      if [[ ${pins[i]} ]]; then ddev wp "$type" install "${sources[i]}" --version="${pins[i]}"; else batch+=("${sources[i]}"); fi ;;
-			esac
-		done
-
-		# Install all collected slugs and URLs in one WP-CLI call
-		if (( ${#batch[@]} )); then
-			ddev wp "$type" install "${batch[@]}"
-		fi
-
-	)
-
-}
-
-# Usage: read_blueprint_files
-# Reads the files in the blueprint, and checks that each source exists and can
-# be read, and that each target is a directory underneath wp-content. Adds
-# them to copy_sources and copy_targets. See copy_files.
-read_blueprint_files() {
-
-	local -a entries
-	read_blueprint entries '.files[] | .source, .target'
-
-	local i source target source_path target_path where
-	for (( i = 0; i < ${#entries[@]}; i += 2 )); do
-
-		source=${entries[i]}
-		target=${entries[i + 1]}
-		where=".files[$(( i / 2 ))]"
-
-		source_path=$(blueprint_path "$source")
-		[[ $source && -e $source_path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where.source doesn't exist" 35
-		[[ -r $source_path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where.source can't be read" 35
-
-		# shellcheck disable=SC2088 # A literal ~ is meant
-		[[ $target && $target != /* && $target != '~'* ]] || die "Invalid blueprint $blueprint: \"$target\" in $where.target is not a path relative to wp-content" 37
-		target_path=$(wp_content_path "$target") || die "Invalid blueprint $blueprint: \"$target\" in $where.target is outside wp-content" 38
-
-		copy_sources+=("$source_path")
-		copy_targets+=("$target_path")
-
-	done
-
-}
-
-# Usage: wp_content_path <path>
-# Echoes the relative <path> without empty parts and . parts, and with each ..
-# part taking away the part before it, or nothing if that leaves no part, which
-# is wp-content itself. Fails if a .. part leads out of wp-content. The path is
-# only read, not looked up, so a symbolic link in it is not followed.
-wp_content_path() {
-
-	local rest=$1 part
-	local -a parts=()
-
-	while [[ $rest ]]; do
-		part=${rest%%/*}
-		if [[ $rest == */* ]]; then rest=${rest#*/}; else rest=; fi
-		case $part in
-			'' | .) ;;
-			..) (( ${#parts[@]} )) || return 1; unset 'parts[-1]' ;;
-			*)  parts+=("$part") ;;
+	# Handle items that need special treatment one by one, and collect plain
+	# slugs for a single batched WP-CLI install. A version applies to every
+	# slug in a WP-CLI install, so a slug with a version is installed on its
+	# own. A theme or plugin from a zip file, local or at a URL, is named
+	# after the directory in the zip file, which only WordPress reads, so it's
+	# installed on its own too, and WordPress is asked for its name.
+	for i in "${!sources[@]}"; do
+		case ${kinds[i]} in
+			directory)
+				copy_into_site "${sources[i]}"
+				names[i]=${sources[i]##*/}
+				;;
+			php)
+				copy_into_site "${sources[i]}"
+				;;
+			zip)
+				install_and_name "$type" zip "${sources[i]}"
+				names[i]=$installed_name
+				;;
+			url)
+				if [[ $type == mu-plugin ]]; then
+					curl -OLf "${sources[i]}"
+				else
+					install_and_name "$type" url "${sources[i]}"
+					names[i]=$installed_name
+				fi
+				;;
+			git)
+				download_from_git "${sources[i]}" "${pins[i]}"
+				names[i]=$(source_name "${sources[i]}")
+				;;
+			slug)
+				names[i]=${sources[i]}
+				if [[ ${pins[i]} ]]; then
+					ddev wp "$type" install "${sources[i]}" --version="${pins[i]}"
+				else
+					batch+=("${sources[i]}")
+				fi
+				;;
 		esac
 	done
 
-	local IFS=/
-	echo "${parts[*]}"
+	# Install all collected slugs in one WP-CLI call
+	if (( ${#batch[@]} )); then
+		ddev wp "$type" install "${batch[@]}"
+	fi
+
+	cd "$wp_path"
+
+}
+
+# Usage: install_and_name <type> <kind> <source>
+# Installs a theme or plugin, as <type> says, from <source>, which is a local
+# zip file or a URL, as <kind> says, and sets the global variable
+# installed_name to the name WordPress gave it. Only WordPress reads the name
+# of the directory in a zip file, so the name is the one theme or plugin that
+# WordPress lists afterwards but not before. A URL to a PHP file is downloaded
+# as it is, as for an mu-plugin.
+install_and_name() {
+
+	local type=$1 kind=$2 source=$3 before after
+
+	before=$(wp_value "$type" list --field=name | sort)
+	if [[ $kind == zip ]]; then
+		wp_install_zip "$type" "$source"
+	elif [[ $source == *.php ]]; then
+		curl -OLf "$source"
+	else
+		ddev wp "$type" install "$source"
+	fi
+	after=$(wp_value "$type" list --field=name | sort)
+
+	installed_name=$(comm -13 <(echo "$before") <(echo "$after"))
+	[[ $installed_name && $installed_name != *$'\n'* ]] || die "Couldn't tell what WordPress named the $type from $source, since it doesn't list exactly one new $type after installing it." 54
 
 }
 
 # Usage: copy_files
-# Copies each file in copy_sources into the directory with the same index in
-# copy_targets, which is relative to wp-content and is created if it's missing,
-# and merges the contents of each directory into it. A file with the same name
-# is replaced. Mutagen is flushed afterwards, so that the copies are visible
-# inside the container to the next WP-CLI step. Only uploads is mounted into
-# the container directly.
+# Copies each file in copy_sources to the path with the same index in
+# copy_targets, which is relative to wp-content, as cp does: into it if it ends
+# with / or is a directory, and to a file with that name otherwise, which is
+# replaced if it's there. Merges the contents of each directory in
+# copy_sources into the directory in copy_targets. Missing directories are
+# created. Mutagen is flushed afterwards, so that the copies are visible inside
+# the container to the next WP-CLI step. Only uploads is mounted into the
+# container directly.
 copy_files() {
 
 	local i target
 	for i in "${!copy_sources[@]}"; do
 		target="$wp_path/wp-content/${copy_targets[i]}"
-		mkdir -p "$target"
 		if [[ -d ${copy_sources[i]} ]]; then
+			mkdir -p "$target"
 			cp -R "${copy_sources[i]}/." "$target/"
 		else
-			cp "${copy_sources[i]}" "$target/"
+			mkdir -p "${target%/*}"
+			cp "${copy_sources[i]}" "$target"
 		fi
 	done
 
@@ -1303,60 +1424,9 @@ timezone_from_locale() {
 
 }
 
-# Usage: read_blueprint_database
-# Reads the database in the blueprint: the dump to import, which must be plain
-# or gzip-compressed SQL, or the DDEV snapshot to restore, and the database
-# server to import or restore it into, which a snapshot must have. DDEV takes
-# any file whose name ends in .gz for compressed SQL, and imports a file it
-# can't decompress as it is, so the name of a dump must end in .sql or .sql.gz.
-# DDEV reads the server a snapshot was taken from in the end of its name, and
-# restores it only into that server, so the name must have it, and it must be
-# the given server. Which versions of a server DDEV has depends on the version
-# of DDEV, so only the form of the server is checked here, and DDEV checks the
-# version.
-read_blueprint_database() {
-
-	# The key is dump or snapshot, since the blueprint has exactly one of them
-	local -a fields
-	read_blueprint fields '.database | (if has("dump") then "dump" else "snapshot" end), (.dump // .snapshot), (.server | values)'
-	local key=${fields[0]} file=${fields[1]} server=${fields[2]-}
-
-	if (( ${#fields[@]} > 2 )); then
-		[[ $server =~ ^(mariadb|mysql):[0-9]+\.[0-9]+$ ]] || die "Invalid blueprint $blueprint: \"$server\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>" 46
-		database_server=$server
-	fi
-
-	local path what
-	path=$(blueprint_path "$file")
-	case $key in
-		dump) what='.sql or .sql.gz file' ;;
-		snapshot) what='DDEV snapshot' ;;
-	esac
-	[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.$key doesn't exist" 35
-	[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.$key is a directory, not a $what" 35
-	[[ -r $path ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.$key can't be read" 35
-
-	# Keep the path without parts such as ./, since messages show it
-	path=$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")
-
-	case $key in
-		dump)
-			[[ $path == *.sql || $path == *.sql.gz ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.dump is not a .sql or .sql.gz file" 35
-			database_dump=$path
-			;;
-		snapshot)
-			[[ ${path##*/} =~ (mariadb|mysql|postgres)_([0-9.]+)\.(zst|gz|mbstream|xbstream)$ ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.snapshot is not a DDEV snapshot, whose name ends with the server it was taken from, as in site-mariadb_11.8.zst" 35
-			local taken_from=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}
-			[[ $taken_from == "$server" ]] || die "Invalid blueprint $blueprint: \"$file\" in .database.snapshot was taken from $taken_from, not from $server in .database.server. A snapshot can only be restored into the server it was taken from." 50
-			database_snapshot=$path
-			;;
-	esac
-
-}
-
 # Usage: restore_snapshot
-# Restores the DDEV snapshot in database_snapshot into the site's database
-# server. DDEV mounts the directory of a snapshot outside the project into the
+# Restores the DDEV snapshot in database_file into the site's database server.
+# DDEV mounts the directory of a snapshot outside the project into the
 # database container, which only works for a directory that Docker shares, so
 # the snapshot is copied into the project's own snapshot directory. It keeps
 # its name, from which DDEV reads the server it was taken from. The copy is
@@ -1365,9 +1435,9 @@ read_blueprint_database() {
 restore_snapshot() {
 
 	local copy
-	copy="$wp_path/.ddev/db_snapshots/${database_snapshot##*/}"
+	copy="$wp_path/.ddev/db_snapshots/${database_file##*/}"
 	mkdir -p "$wp_path/.ddev/db_snapshots"
-	cp "$database_snapshot" "$copy"
+	cp "$database_file" "$copy"
 	ddev snapshot restore "$copy"
 	rm "$copy"
 
@@ -1412,11 +1482,21 @@ adopt_database() {
 
 	# Apply the site settings that were given explicitly. The settings mkwp
 	# gives a new site by default, such as a title made from NAME, are not.
+	# Without a language given, the site keeps the language of the database,
+	# but WordPress falls back to English if its language pack is missing, so
+	# it's installed. The database has a timezone of its own, so none is
+	# derived from the language.
 	if [[ $title_given ]]; then
 		ddev wp option update blogname "$title" --skip-plugins --skip-themes
 	fi
 	if [[ $language_given ]]; then
 		ddev wp site switch-language "$language" --skip-plugins --skip-themes
+	else
+		local locale
+		locale=$(wp_value option get WPLANG) || locale=
+		if [[ $locale && $locale != en_US ]]; then
+			ddev wp language core install "$locale" --activate --skip-plugins --skip-themes
+		fi
 	fi
 
 	# Flush the rewrite rules with plugins and themes, since they add rules
@@ -1470,15 +1550,6 @@ adopt_user() {
 # are left out.
 wp_value() {
 	ddev wp "$@" --skip-plugins --skip-themes 2> /dev/null | sed -e '/^Deprecated: .* on line [0-9]*$/d' -e '/^$/d'
-}
-
-# Usage: read_blueprint_wp_cli
-# Reads the WP-CLI commands in the blueprint. Bash has no arrays of arrays, so
-# the arguments of all the commands are kept one after another in
-# wp_cli_args, and the number of arguments of each command in wp_cli_lengths.
-read_blueprint_wp_cli() {
-	read_blueprint wp_cli_args '.wp_cli[][]'
-	read_blueprint wp_cli_lengths '.wp_cli[] | length'
 }
 
 # Usage: run_wp_cli_commands
@@ -1589,36 +1660,36 @@ main() {
 	blueprint_named_in=
 
 	# The blueprint's directory, which its relative paths are relative to,
-	# and the outputs of read_blueprint_item.
+	# and the outputs of add_item and install_and_name.
 	blueprint_dir=
-	item_name=
-	item_activate=
+	item_index=
+	installed_name=
 
 	# The themes, plugins and mu-plugins to install, in arrays that are used
 	# by their names. See add_item.
 	# shellcheck disable=SC2034
-	themes_sources=() themes_kinds=() themes_pins=()
+	themes_sources=() themes_kinds=() themes_pins=() themes_names=()
 	# shellcheck disable=SC2034
-	plugins_sources=() plugins_kinds=() plugins_pins=()
+	plugins_sources=() plugins_kinds=() plugins_pins=() plugins_names=()
 	# shellcheck disable=SC2034
-	mu_plugins_sources=() mu_plugins_kinds=() mu_plugins_pins=()
+	mu_plugins_sources=() mu_plugins_kinds=() mu_plugins_pins=() mu_plugins_names=()
 
-	# The name of the theme to activate, and of the plugins to activate. The
-	# last theme listed is activated if none is chosen and there is no
-	# database.
-	theme=
-	last_theme=
+	# The index in themes_sources of the theme to activate, and those in
+	# plugins_sources of the plugins to activate. The last theme listed is
+	# activated if none is chosen and there is no database.
+	theme_index=
+	last_theme_index=
 	plugins_to_activate=()
 
-	# The files and directories to copy, and the directories underneath
-	# wp-content to copy them into, in arrays with the same indices.
+	# The files and directories to copy, and the paths underneath wp-content
+	# to copy them to, in arrays with the same indices. See copy_files.
 	copy_sources=() copy_targets=()
 
-	# The database dump to import or the DDEV snapshot to restore, if any, and
-	# the database server to import or restore it into, if one is given. See
-	# read_blueprint_database.
-	database_dump=
-	database_snapshot=
+	# The kind of database to start from, if any, which is a dump to import
+	# or a DDEV snapshot to restore, its file, and the database server to
+	# import or restore it into, if one is given. See read_blueprint_database.
+	database_kind=
+	database_file=
 	database_server=
 
 	# The WP-CLI commands to run at the end. See read_blueprint_wp_cli.
@@ -1671,10 +1742,10 @@ main() {
 	# Add the themes, plugins and mu-plugins given on the command line after
 	# the blueprint's. The last theme given is activated, instead of the theme
 	# the blueprint would have activated.
-	if [[ $themes ]]; then
-		theme=$(theme_to_activate "$themes")
-	fi
 	add_option_items themes "$themes"
+	if [[ $themes ]]; then
+		theme_index=$item_index
+	fi
 	add_option_items plugins "$plugins"
 	add_option_items mu_plugins "$mu_plugins"
 
@@ -1701,9 +1772,19 @@ main() {
 		echo "wp=$wp"
 		echo "redis=$redis"
 		echo "blueprint=$blueprint"
+		echo "no_blueprint=$no_blueprint"
 		echo "config=$config"
 		echo "wp_path=$wp_path"
 		echo "url=$url"
+		echo "theme_index=$theme_index"
+		echo "last_theme_index=$last_theme_index"
+		echo "database_kind=$database_kind"
+		echo "database_file=$database_file"
+		echo "database_server=$database_server"
+		declare -p themes_sources themes_kinds themes_pins \
+			plugins_sources plugins_kinds plugins_pins plugins_to_activate \
+			mu_plugins_sources mu_plugins_kinds mu_plugins_pins \
+			copy_sources copy_targets wp_cli_args wp_cli_lengths | sed 's/^declare -a //'
 	fi
 
 	# Validate options. Everything that doesn't need DDEV is checked before
@@ -1721,6 +1802,20 @@ main() {
 	[[ ! -e "$wp_path/.ddev/config.yaml" ]] || die "A DDEV project already exists in the directory $wp_path." 15
 	[[ ! -e "$wp_path" ]] || die "$wp_path already exists" 13
 	[[ -d "$directory" && -w "$directory" ]] || die "Cannot create $wp_path" 14
+
+	# Resolve the WordPress version, if one is requested, which needs the
+	# network but not DDEV. Derive the core auto-update policy from how
+	# precisely it was given, and resolve any omitted parts to the highest
+	# available release.
+	if [[ "$wp" ]]; then
+		case "$wp" in
+			*.*.*) wp_auto_update=false ;;      # exact x.y.z: pin, no auto-updates
+			*)     wp_auto_update="'minor'" ;;  # x or x.y: only patch (.z) auto-updates
+		esac
+		wp=$(resolve_wp_version "$wp") || exit $?
+	else
+		wp_auto_update="'minor'"
+	fi
 
 	# Check that DDEV is working
 	ddev debug dockercheck &> /dev/null || die "Error: Check that a Docker provider is installed and running and that DDEV is properly installed" 1
@@ -1785,19 +1880,12 @@ main() {
 
 	# Download WordPress without the default themes and plugins, which saves
 	# both download and file synchronization time; themes to use are installed
-	# further down. When a version is requested, derive the core auto-update
-	# policy from how precisely it was given, resolve any omitted parts to the
-	# highest available release, and download that exact version.
+	# further down. When a version is requested, download the exact version it
+	# was resolved to.
 	if [[ "$wp" ]]; then
-		case "$wp" in
-			*.*.*) wp_auto_update=false ;;      # exact x.y.z: pin, no auto-updates
-			*)     wp_auto_update="'minor'" ;;  # x or x.y: only patch (.z) auto-updates
-		esac
-		wp=$(resolve_wp_version "$wp") || exit $?
 		echo "Installing WordPress $wp"
 		ddev wp core download --version="$wp" --locale="$language" --skip-content
 	else
-		wp_auto_update="'minor'"
 		ddev wp core download --locale="$language" --skip-content
 	fi
 
@@ -1841,10 +1929,10 @@ main() {
 		default_theme=$(sed -n "s/.*'WP_DEFAULT_THEME', '\([^']*\)'.*/\1/p" wp-includes/default-constants.php)
 		[[ "$default_theme" ]] || die "Couldn't determine the default theme." 25
 		add_item themes slug "$default_theme"
-		last_theme=$default_theme
+		last_theme_index=$item_index
 	fi
-	if [[ -z $database_dump && -z $database_snapshot ]]; then
-		theme=${theme:-$last_theme}
+	if [[ -z $database_kind ]]; then
+		theme_index=${theme_index:-$last_theme_index}
 	fi
 
 	# Create home for "must use" plugins
@@ -1863,21 +1951,25 @@ main() {
 
 	# Import the dump or restore the snapshot, if there is one, and make the
 	# database the site's own
-	if [[ $database_dump ]]; then
-		ddev import-db --file="$database_dump"
-		adopt_database "$database_dump"
-	elif [[ $database_snapshot ]]; then
-		restore_snapshot
-		adopt_database "$database_snapshot"
+	if [[ $database_kind ]]; then
+		case $database_kind in
+			dump)     ddev import-db --file="$database_file" ;;
+			snapshot) restore_snapshot ;;
+		esac
+		adopt_database "$database_file"
 	fi
 
 	# Activate the theme, if there is one to activate, and the plugins marked
-	# for activation
-	if [[ $theme ]]; then
-		ddev wp theme activate "$theme"
+	# for activation, by the names that install_items found
+	if [[ $theme_index ]]; then
+		ddev wp theme activate "${themes_names[theme_index]}"
 	fi
 	if (( ${#plugins_to_activate[@]} )); then
-		ddev wp plugin activate "${plugins_to_activate[@]}"
+		plugin_names=()
+		for i in "${plugins_to_activate[@]}"; do
+			plugin_names+=("${plugins_names[i]}")
+		done
+		ddev wp plugin activate "${plugin_names[@]}"
 	fi
 
 	# Enable Redis as object cache backend: install and activate the Redis

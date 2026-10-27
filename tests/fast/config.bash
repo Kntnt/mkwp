@@ -9,6 +9,28 @@ write_home_config() {
 	printf '%s\n' "$@" > "$mkwp_home/.mkwp"
 }
 
+test_stops_when_home_config_can_not_be_created() {
+	chmod a-w "$mkwp_home"
+	run_mkwp -m test@example.com site
+	chmod u+w "$mkwp_home"
+	assert_stopped_with 10 "Couldn't create ~/.mkwp"
+	assert_nothing_created
+}
+
+test_stops_when_home_config_can_not_be_read() {
+	write_home_config 'email = test@example.com'
+	chmod a-r "$mkwp_home/.mkwp"
+	run_mkwp site
+	assert_rejected 10 "Couldn't read ~/.mkwp"
+	assert_nothing_created
+}
+
+test_stops_when_the_c_file_can_not_be_read() {
+	run_mkwp -m test@example.com -c "$sandbox/missing" site
+	assert_rejected 10 'Invalid path to config file'
+	assert_nothing_created
+}
+
 test_rejects_a_site_setting_in_home_config() {
 	write_home_config 'title = My Site'
 	run_mkwp -m test@example.com site
@@ -62,8 +84,7 @@ test_rejects_a_setting_without_an_equal_sign() {
 test_accepts_blank_lines_and_comments() {
 	write_home_config '# Personal settings' '' '   ' '  # Indented' 'email=test@example.com' 'user = tester' '# title = Not read'
 	run_mkwp site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 # An invalid value is only reported if it's the one used, which shows which
@@ -72,8 +93,7 @@ test_lets_a_personal_setting_on_the_command_line_take_precedence_over_config_fil
 	write_home_config 'email = from-home'
 	printf '%s\n' 'email = from-config' > "$sandbox/config"
 	run_mkwp -m test@example.com -c "$sandbox/config" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_lets_a_personal_setting_in_the_c_file_take_precedence_over_home_config() {
@@ -139,8 +159,7 @@ test_builds_from_a_valid_blueprint_named_in_a_config_file() {
 	write_blueprint '{"site": {"title": "Client Site"}}'
 	write_home_config "blueprint = $blueprint"
 	run_mkwp -m test@example.com site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_rejects_a_blueprint_named_in_a_config_file_that_does_not_exist() {
@@ -157,8 +176,7 @@ test_lets_a_blueprint_on_the_command_line_take_precedence_over_config_files() {
 	write_home_config "blueprint = $sandbox/home.json"
 	printf '%s\n' "blueprint = $sandbox/client.json" > "$sandbox/config"
 	run_mkwp -m test@example.com -c "$sandbox/config" -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_lets_a_blueprint_in_the_c_file_take_precedence_over_home_config() {
@@ -177,8 +195,7 @@ test_builds_without_the_blueprint_a_config_file_names_with_no_blueprint() {
 	write_home_config 'email = test@example.com' "blueprint = $sandbox/home.json"
 	printf '%s\n' "blueprint = $sandbox/client.json" > "$sandbox/config"
 	run_mkwp --no-blueprint -c "$sandbox/config" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 	write_home_config 'email = test@example.com' 'password = short' "blueprint = $sandbox/home.json"
 	run_mkwp --no-blueprint -c "$sandbox/config" site
 	assert_rejected 7 'Invalid password. Must be at least 12 characters.'

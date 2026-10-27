@@ -15,7 +15,7 @@ To update mkwp, run the same commands again. To install a particular version, pu
 
 Install the file from a release, not from a clone of the repository. The version is written into the file when a release is built, so a copy of `mkwp` taken straight from the repository has none and calls itself `unreleased`. To build the file from a clone, run `bin/build-release-assets`: it writes `release-assets/mkwp`, with the version taken from git.
 
-mkwp needs a running Docker provider and [DDEV](https://ddev.com/) on your `PATH`. To build a site from a blueprint, it also needs [jq](https://jqlang.org/), and `unzip` if the blueprint has local zip files. Current macOS comes with both.
+mkwp needs a running Docker provider and [DDEV](https://ddev.com/) on your `PATH`. To build a site from a blueprint, it also needs [jq](https://jqlang.org/), which current macOS comes with.
 
 ## Usage
 
@@ -247,12 +247,14 @@ BLUEPRINT
 		source, and with version, ref, activate (true or false) and
 		note. version is the version to install, and only a slug on
 		WordPress.org may have it. ref is the tag, branch or commit to
-		check out, and only a Git repository may have it. Each item
-		with "activate": true is activated, and at most one theme may
-		have it. If no theme has it, the last theme is activated,
-		unless there is a database. Themes and plugins given with -T
-		and -P are installed after the blueprint's, and the last theme
-		given with -T is activated instead of the blueprint's.
+		check out, and only a Git repository may have it. Neither may
+		hold white space or start with a hyphen, which Git would take
+		for an option. Each item with "activate": true is activated,
+		and at most one theme may have it. If no theme has it, the
+		last theme is activated, unless there is a database. Themes
+		and plugins given with -T and -P are installed after the
+		blueprint's, and the last theme given with -T is activated
+		instead of the blueprint's.
 
 	mu_plugins
 		An array of the mu-plugins to install. An item is a source, as
@@ -262,18 +264,25 @@ BLUEPRINT
 	files
 		An array of the files and directories to copy into wp-content,
 		such as the media that a database refers to. An item is an
-		object with a local file or directory in source, the directory
-		to copy it into in target, and note. A relative source is
-		relative to the blueprint's directory. The target is relative
-		to wp-content, as in "uploads/2024/01", and is created if it's
-		missing. It must not be absolute or start with ~, and its ..
-		parts must not lead out of wp-content. A file keeps its name,
-		and replaces a file with the same name. A directory's contents
-		are merged with what the target already has. Example:
+		object with a local file or directory in source, where to
+		copy it in target, and note. A relative source is relative
+		to the blueprint's directory. The target is relative to
+		wp-content. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. Missing directories in
+		it are created.
+
+		As with cp, the target of a file is the path of the copy, so
+		the copy can get a new name, as in "uploads/2024/01/logo.png",
+		and replaces a file with the same path. A target that ends
+		with /, or is a directory that already exists, is the
+		directory to copy the file into under its own name. The
+		target of a directory is the directory to merge its contents
+		into. Example:
 
 			"files": [
 			  { "source": "./media", "target": "uploads" },
-			  { "source": "./fonts/brand.woff2", "target": "fonts" }
+			  { "source": "./fonts/brand.woff2", "target": "fonts/" },
+			  { "source": "./logo.png", "target": "uploads/2024/01/client-logo.png" }
 			]
 
 	database
@@ -298,13 +307,18 @@ BLUEPRINT
 		plugins of the database, but for what is given explicitly:
 		the themes and plugins with "activate": true and the theme
 		given with -T are activated, and a title and a language given
-		replace those of the database. What mkwp gives a new site by
+		replace those of the database. Without a language given, the
+		language pack of the database's language is installed, so
+		that the site shows in it. What mkwp gives a new site by
 		default, such as a title made from NAME, pretty permalinks
 		and the timezone of the language, is not applied. The user
 		is made an administrator with the email address and
 		password given, and is created if the database doesn't have
-		it. A dump or a snapshot can hold secrets, such as licence
-		keys and API credentials, which mkwp doesn't remove.
+		it. If the email address belongs to another user in the
+		database, mkwp stops, since WordPress can't give two users
+		the same email address. A dump or a snapshot can hold
+		secrets, such as licence keys and API credentials, which
+		mkwp doesn't remove.
 
 	wp_cli
 		An array of WP-CLI commands, which are run in the given order at
@@ -332,10 +346,14 @@ BLUEPRINT
 		ref is checked out, or else the latest tag, or the default
 		branch if there is no tag.
 
-		A URL, which starts with http:// or https://, to a zip file.
+		A URL, which starts with http:// or https://, to a zip file,
+		which is named after the directory in it, as a local one is.
 
 		A slug on WordPress.org, which is anything else. The version
-		in version is installed, or else the latest one.
+		in version is installed, or else the latest one. A slug has
+		only lower-case letters, digits, - and _, so a local path
+		written without ./ in front is reported before anything is
+		made.
 
 	The source of an mu-plugin is a PHP file, given by a local path,
 	which starts with ./, ../, / or ~/ and is relative to the
@@ -353,8 +371,9 @@ BLUEPRINT
 		  is one. The old address is replaced by the site's, also
 		  where it's JSON-escaped, the database is upgraded, the
 		  user is made an administrator, the title and language
-		  given are applied, and the rewrite rules and the object
-		  cache are flushed.
+		  given are applied, or else the language pack of the
+		  database's language is installed, and the rewrite rules
+		  and the object cache are flushed.
 		- The theme to activate, and the plugins with
 		  "activate": true, are activated.
 		- Redis is enabled as object cache, if it is used.
@@ -364,8 +383,7 @@ BLUEPRINT
 DEPENDENCY
 	This command requires that a Docker provider is installed and running
 	on your system and that DDEV is properly installed and in your path.
-	A blueprint also requires jq, and a blueprint with a local zip file
-	requires unzip.
+	A blueprint also requires jq.
 ```
 
 ## Blueprints

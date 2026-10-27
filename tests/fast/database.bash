@@ -5,7 +5,7 @@
 test_rejects_a_database_with_neither_a_dump_nor_a_snapshot() {
 	write_blueprint '{"database": {"server": "mariadb:11.4"}}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 32 "Invalid blueprint $blueprint: .database has no \"dump\" or \"snapshot\""
+	assert_rejected 52 "Invalid blueprint $blueprint: .database has no \"dump\" or \"snapshot\""
 	assert_nothing_created
 }
 
@@ -19,7 +19,7 @@ test_rejects_a_database_with_both_a_dump_and_a_snapshot() {
 test_rejects_a_snapshot_without_a_server() {
 	write_blueprint '{"database": {"snapshot": "./site-mariadb_11.8.zst"}}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 32 "Invalid blueprint $blueprint: .database has no \"server\", which is required with \"snapshot\""
+	assert_rejected 51 "Invalid blueprint $blueprint: .database has no \"server\", which is required with \"snapshot\""
 	assert_nothing_created
 }
 
@@ -112,8 +112,7 @@ test_finds_a_dump_and_a_server_that_are_valid() {
 	mkdir "$sandbox/blueprint/dumps"
 	echo 'SELECT 1;' | gzip > "$sandbox/blueprint/dumps/site.sql.gz"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 # A snapshot from an older DDEV is compressed with gzip, and has .gz at the end
@@ -123,6 +122,5 @@ test_finds_a_snapshot_and_a_server_that_match() {
 	mkdir "$sandbox/blueprint/snapshots"
 	echo snapshot | gzip > "$sandbox/blueprint/snapshots/site_20250911151318-mariadb_10.11.gz"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }

@@ -86,7 +86,7 @@
 						"minLength": 1
 					},
 					"target": {
-						"description": "The directory to copy into, relative to wp-content, such as uploads/2024/01. It's created if it's missing. A file keeps its name, and a directory's contents are merged into it. The target must not be absolute or start with ~, and its .. parts must not lead out of wp-content.",
+						"description": "Where to copy the source, relative to wp-content. As with cp, the target of a file is the path of the copy, such as uploads/2024/01/logo.png, so the copy can get a new name, and a target that ends with /, or is a directory that already exists, is the directory to copy the file into under its own name. The target of a directory is the directory to merge its contents into, such as uploads. Missing directories are created. The target must not be absolute or start with ~, and its .. parts must not lead out of wp-content.",
 						"type": "string",
 						"pattern": "^[^/~]"
 					},
@@ -97,7 +97,7 @@
 			}
 		},
 		"database": {
-			"description": "A database to start the site from: a dump or a DDEV snapshot of another WordPress site, whose tables have the prefix wp_. It has exactly one of dump and snapshot. The site keeps the users, settings and active theme and plugins of the database, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the database, and themes and plugins with \"activate\": true are activated. A dump or a snapshot can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
+			"description": "A database to start the site from: a dump or a DDEV snapshot of another WordPress site, whose tables have the prefix wp_. It has exactly one of dump and snapshot. The site keeps the users, settings and active theme and plugins of the database, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the database, the language pack of the database's language is installed if no language is given, and themes and plugins with \"activate\": true are activated. A dump or a snapshot can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
 			"type": "object",
 			"additionalProperties": false,
 			"oneOf": [

@@ -1,13 +1,21 @@
 # A site built from a blueprint, with themes and plugins from WordPress.org,
-# from zip files next to the blueprint and from Git repositories. The zip files
-# are named with a version, unlike the directories they hold, and the Git
-# repositories are bare repositories reached through file:// URLs. mkwp is run
-# from another directory than the blueprint's.
+# from zip files next to the blueprint, from Git repositories and from a URL.
+# The zip files are named with a version, unlike the directories they hold, and
+# the Git repositories are bare repositories reached through file:// URLs. mkwp
+# is run from another directory than the blueprint's.
+#
+# The URL is that of a tag's zip file on GitHub, whose name is the tag. WP-CLI
+# installs the plugin in it under the repository's name. WordPress won't
+# download from a private address, such as a web server on this machine, so
+# the URL is public.
 
 fixtures="$run_dir/fixtures/blueprint"
 
 # Kntnt's adminbar sanitizer, a single PHP file, serves as mu-plugin.
 mu_plugin_url=https://raw.githubusercontent.com/Kntnt/kntnt-adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php
+
+# WordPress Importer 0.9.5, which is installed as wordpress-importer.
+plugin_url=https://github.com/WordPress/wordpress-importer/archive/refs/tags/0.9.5.zip
 
 setup_file() {
 
@@ -30,7 +38,8 @@ setup_file() {
 		"plugins": [
 			{"source": "hello-dolly", "activate": true},
 			{"source": "./mkwp-zip-plugin-1.0.0.zip", "activate": true},
-			"file://$fixtures/mkwp-git-plugin.git"
+			"file://$fixtures/mkwp-git-plugin.git",
+			{"source": "$plugin_url", "activate": true}
 		],
 		"mu_plugins": ["$mu_plugin_url"]
 	}
@@ -76,7 +85,12 @@ test_checks_out_the_latest_tag_of_a_git_repository() {
 }
 
 test_activates_the_marked_plugins() {
-	assert_equal $'hello-dolly\nmkwp-zip-plugin\nredis-cache' "$(site_wp blueprint plugin list --status=active --field=name | sort)"
+	assert_equal $'hello-dolly\nmkwp-zip-plugin\nredis-cache\nwordpress-importer' "$(site_wp blueprint plugin list --status=active --field=name | sort)"
+}
+
+test_activates_a_plugin_from_a_url_by_the_name_wordpress_installed_it_under() {
+	assert_equal active "$(site_wp blueprint plugin get wordpress-importer --field=status)"
+	assert_equal 0.9.5 "$(site_wp blueprint plugin get wordpress-importer --field=version)"
 }
 
 test_installs_unmarked_plugins_without_activating_them() {

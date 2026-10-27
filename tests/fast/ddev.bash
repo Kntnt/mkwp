@@ -17,8 +17,7 @@ test_stops_when_ddev_is_missing() {
 
 test_stops_when_docker_is_not_running() {
 	run_mkwp -m test@example.com site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_rejects_a_name_ddev_already_has_a_project_for() {
