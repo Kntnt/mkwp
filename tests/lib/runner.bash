@@ -66,8 +66,15 @@ run_mkwp() {
 
 	status=0
 	(cd "$mkwp_dir" && HOME="$mkwp_home" PATH="$mkwp_path" exec "$mkwp" "$@") > "$run_dir/stdout" 2> "$run_dir/stderr" || status=$?
-	output=$(sed $'s/\e\\[[0-9;]*m//g' "$run_dir/stderr")
+	output=$(without_colours < "$run_dir/stderr")
 
+}
+
+# Usage: without_colours
+# Copies stdin to stdout without the escape sequences that colour terminal
+# output.
+without_colours() {
+	sed $'s/\e\\[[0-9;]*m//g'
 }
 
 # Usage: assert_no_files_created
