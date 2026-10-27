@@ -312,6 +312,7 @@ handle_arguments() {
 			-W | --wp=*) extract_argument wp "$@"; shift $shift_n ;;
 			-R | --redis) redis=true; shift ;;
 			-B | --blueprint=*) extract_argument blueprint "$@"; shift $shift_n ;;
+			--no-blueprint) no_blueprint=true; shift ;;
 			--destroy) destroy=true; shift ;;
 			-c | --config=*) extract_argument config "$@"; shift $shift_n ;;
 			*) if [[ -z "$name" ]]; then name="$1"; shift; else die "Error: Invalid flag: $1" 2; fi ;;
@@ -323,57 +324,86 @@ handle_arguments() {
 }
 
 # Usage: handle_config_files
-# Reads options from the configuration file given with -c/--config, if any,
-# and from ~/.mkwp, without overriding options already set on the command line.
+# Reads the personal settings, and the blueprint, from the configuration file
+# given with -c/--config, if any, and then from ~/.mkwp, without overriding
+# what is already set. So the command line takes precedence over the file
+# given with -c, and that file over ~/.mkwp.
 handle_config_files() {
 
-	# Create a list of files to read configuration from
-	local files=()
-
-	# Add config file to the list of configuration files if it exists and is readable
+	# Read the file given with -c, or standard input if it's -. A relative
+	# path to a blueprint is relative to the file's directory, and to the
+	# current directory in standard input.
 	if [[ $config ]]; then
-
-		# Use /dev/stdin if config file is -
-		if [[ "$config" == "-" ]]; then
-			config="/dev/stdin"
+		local label=$config dir
+		dir=$(dirname "$config")
+		if [[ $config == - ]]; then
+			config=/dev/stdin label='standard input' dir=
 		fi
-
-		# Validate config file
 		[[ -r $config ]] || die "Invalid path to config file" 10
-
-		# Add the config file to the list of files to read configuration from
-		files+=("$config")
-
+		read_config_file "$config" "$label" "$dir"
 	fi
 
-	# Add ~/.mkwp file to the list of configuration files. Create ~/.mkwp if it doesn't exist.
+	# Read ~/.mkwp, which is created if it doesn't exist
 	if [[ ! -e ~/.mkwp ]]; then
 		touch ~/.mkwp || die "Couldn't create ~/.mkwp" 12
 	fi
 	[[ -r ~/.mkwp ]] || die "Couldn't read ~/.mkwp" 12
-	files+=(~/.mkwp)
+	# shellcheck disable=SC2088 # The label is meant to show ~
+	read_config_file ~/.mkwp '~/.mkwp' "$HOME"
 
-	# Read config files
-	while IFS= read -r line || [[ "$line" ]]; do
+}
 
-		# Validate the line structure
-		if [[ $line =~ ^(name|title|directory|dirname|email|user|password|language|themes|plugins|mu-plugins|php|wp|redis)[[:space:]]*=[[:space:]]*(.*) ]]; then
+# Usage: read_config_file <file> <label> <directory>
+# Reads the configuration file <file>, which messages call <label>, and sets
+# each setting in it that isn't already set. A relative path to a blueprint is
+# relative to <directory>, or kept as it is if <directory> is empty.
+read_config_file() {
 
-			# Extract keyword and value
-			local key="${BASH_REMATCH[1]//-/_}"
-			local value="${BASH_REMATCH[2]}"
+	local file=$1 label=$2 dir=$3
+	local line key value number=0
 
-			# If the global variable named in $key is empty, assign it the
-			# value in $value. N.B. We know that $key contains a name of
-			# an already declared global variable, since all variables names
-			# in the regex above are declared before this function is called.
-			if [[ -z ${!key} ]]; then
-				eval "$key=$(printf "%q" "$value")"
+	while IFS= read -r line || [[ $line ]]; do
+
+		(( ++number ))
+
+		# Each setting that isn't already set is set to the value
+		if [[ $line =~ ^[[:space:]]*(email|user|password|directory|blueprint)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+
+			key=${BASH_REMATCH[1]}
+			value=${BASH_REMATCH[2]}
+			[[ -z ${!key} && $value ]] || continue
+
+			# A blueprint's path may start with ~, and may be relative
+			if [[ $key == blueprint ]]; then
+				# shellcheck disable=SC2088 # A literal ~ is meant
+				case $value in
+					'~')   value=$HOME ;;
+					'~/'*) value=$HOME/${value#'~/'} ;;
+					/*)    ;;
+					*)     value=${dir:+$dir/}$value ;;
+				esac
+				blueprint_named_in=$label
 			fi
 
+			printf -v "$key" '%s' "$value"
+
+		# A site setting belongs in a blueprint, or on the command line
+		elif [[ $line =~ ^[[:space:]]*(name|dirname|title|language|themes|plugins|mu-plugins|php|wp|redis)[[:space:]]*= ]]; then
+
+			key=${BASH_REMATCH[1]}
+			case $key in
+				name)    die "Invalid configuration in $label: name on line $number belongs on the command line now, as NAME" 170 ;;
+				dirname) die "Invalid configuration in $label: dirname on line $number belongs on the command line now, as -D or --dirname" 170 ;;
+				themes | plugins | mu-plugins) die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .${key//-/_}" 170 ;;
+				*)       die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .site.$key" 170 ;;
+			esac
+
+		# Blank lines and comments are ignored, and anything else is an error
+		elif [[ ! $line =~ ^[[:space:]]*(#|$) ]]; then
+			die "Invalid configuration in $label: line $number is neither blank, a comment nor a setting: $line" 171
 		fi
 
-	done < <(cat "${files[@]}")
+	done < "$file"
 
 }
 
@@ -387,7 +417,7 @@ handle_blueprint() {
 	command -v jq > /dev/null || die "mkwp needs jq to read a blueprint. Install jq and try again." 27
 
 	# The blueprint must be a file that can be read
-	[[ -f $blueprint && -r $blueprint ]] || die "Couldn't read the blueprint $blueprint" 28
+	[[ -f $blueprint && -r $blueprint ]] || die "Couldn't read the blueprint $blueprint${blueprint_named_in:+, named in $blueprint_named_in}" 28
 
 	# Check the blueprint's structure before anything is read from it
 	check_blueprint
@@ -1081,9 +1111,14 @@ main() {
 	wp=
 	redis=
 	blueprint=
+	no_blueprint=
 	destroy=
 	config=
 	shift_n=
+
+	# The configuration file that named the blueprint, if one did, as its
+	# messages call it. See read_config_file.
+	blueprint_named_in=
 
 	# The blueprint's directory, which its relative paths are relative to,
 	# and the outputs of read_blueprint_item.
@@ -1115,13 +1150,20 @@ main() {
 		destroy_site
 	fi
 
-	# Read the blueprint, if one is given
+	# --no-blueprint only makes sense without a blueprint on the command line
+	[[ -z $no_blueprint || -z $blueprint ]] || die "--no-blueprint and -B/--blueprint can't be used together." 172
+
+	# Read the configuration files, which may name the blueprint
+	handle_config_files
+
+	# Read the blueprint, if there is one. With --no-blueprint there is none,
+	# even if a configuration file names one.
+	if [[ $no_blueprint ]]; then
+		blueprint=
+	fi
 	if [[ $blueprint ]]; then
 		handle_blueprint
 	fi
-
-	# Parse config files
-	handle_config_files
 
 	# Tidy up, fill in default values and add some extra variables.
 	title=${title:=${name^}}
@@ -1145,12 +1187,11 @@ main() {
 	add_option_items plugins "$plugins"
 	add_option_items mu_plugins "$mu_plugins"
 
-	# Normalize the redis option, which may come from a config file as text
-	case "${redis,,}" in
-		'' | false | no | 0) redis= ;;
-		true | yes | 1)      redis=true ;;
-		*)                   die "Invalid value for redis: $redis" 24 ;;
-	esac
+	# Redis is used if -R is given or the blueprint sets it to true, and not if
+	# the blueprint sets it to false
+	if [[ $redis != true ]]; then
+		redis=
+	fi
 
 	# Echo all parameters used by the script if debugging.
 	if [[ $MKWP_DEBUG ]]; then
