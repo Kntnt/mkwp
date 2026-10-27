@@ -195,8 +195,8 @@ help() {
 
 	\e[1mnote\e[0m
 		A note of your own, since JSON has no comments. It may also be
-		given in each item of \e[1mthemes\e[0m, \e[1mplugins\e[0m and \e[1mmu_plugins\e[0m. mkwp
-		ignores it.
+		given in each item of \e[1mthemes\e[0m, \e[1mplugins\e[0m, \e[1mmu_plugins\e[0m and
+		\e[1mfiles\e[0m. mkwp ignores it.
 
 	\e[1msite\e[0m
 		An object with the settings of the site: \e[1mtitle\e[0m, \e[1mlanguage\e[0m, \e[1mphp\e[0m
@@ -224,13 +224,34 @@ help() {
 		with \e[1mnote\e[0m.
 
 	\e[1mfiles\e[0m
-		Not supported yet. A blueprint with this key is rejected.
+		An array of the files and directories to copy into wp-content,
+		such as the media that a database refers to. An item is an
+		object with a local file or directory in \e[1msource\e[0m, the directory
+		to copy it into in \e[1mtarget\e[0m, and \e[1mnote\e[0m. A relative source is
+		relative to the blueprint's directory. The target is relative
+		to wp-content, as in \"uploads/2024/01\", and is created if it's
+		missing. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. A file keeps its name,
+		and replaces a file with the same name. A directory's contents
+		are merged with what the target already has. Example:
+
+			\"files\": [
+			  { \"source\": \"./media\", \"target\": \"uploads\" },
+			  { \"source\": \"./fonts/brand.woff2\", \"target\": \"fonts\" }
+			]
 
 	\e[1mdatabase\e[0m
 		Not supported yet. A blueprint with this key is rejected.
 
 	\e[1mwp_cli\e[0m
-		Not supported yet. A blueprint with this key is rejected.
+		An array of WP-CLI commands, which are run in the given order at
+		the end of the build. A command is an array of the arguments to
+		wp, without wp itself, such as
+		[\"option\", \"update\", \"blogdescription\", \"Just another site\"].
+		Each argument reaches WP-CLI exactly as written, since no shell
+		is involved, so nothing needs quoting. A command gets no input,
+		so give --yes to a command that asks for confirmation. If a
+		command fails, mkwp stops without opening the site.
 
 	The source of a theme or plugin is one of these, recognized in this
 	order:
@@ -264,9 +285,11 @@ help() {
 		  used, the Redis add-on, and started.
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
+		- The files are copied into wp-content.
 		- The theme to activate, and the plugins with
 		  \"activate\": true, are activated.
 		- Redis is enabled as object cache, if it is used.
+		- The WP-CLI commands in wp_cli are run, in order.
 		- The site is opened in the browser.
 
 \e[1mDEPENDENCY\e[0m
@@ -464,9 +487,9 @@ check_blueprint() {
 	# Emits an error for each way the value breaks schema, where path is the
 	# value's path in the blueprint. A schema is an object with the JSON type
 	# or types the value may have, under type, the keys an object may have,
-	# under props, the keys it must have, under required, and the schema of
-	# the items in an array, under items. A key whose schema is null is not a
-	# known key.
+	# under props, the keys it must have, under required, the schema of the
+	# items in an array, under items, and whether an array must have items,
+	# under nonempty. A key whose schema is null is not a known key.
 	def check($schema; $path):
 		type as $type
 		| ([$schema.type] | flatten) as $types
@@ -480,6 +503,8 @@ check_blueprint() {
 			( ($schema.required // [])[] as $key | select(has($key) | not)
 				| "32 \($path | location) has no \"\($key)\"" ),
 			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
+		elif $type == "array" and $schema.nonempty and length == 0 then
+			"39 \($path | location) must not be empty"
 		elif $type == "array" then
 			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index])
 		else
@@ -515,14 +540,19 @@ check_blueprint() {
 		note: note
 	}};
 
-	# files: not supported yet, so rejected as an unknown key.
-	def files: null;
+	# files: each item is a local file or directory to copy, and the
+	# directory underneath wp-content to copy it into.
+	def files: {type: "array", items: {type: "object", required: ["source", "target"], props: {
+		source: string,
+		target: string,
+		note: note
+	}}};
 
 	# database: not supported yet, so rejected as an unknown key.
 	def database: null;
 
-	# wp_cli: not supported yet, so rejected as an unknown key.
-	def wp_cli: null;
+	# wp_cli: each command is an array of the arguments to wp.
+	def wp_cli: {type: "array", items: {type: "array", nonempty: true, items: string}};
 
 	# The blueprint itself.
 	def blueprint: {type: "object", props: {
@@ -1013,6 +1043,86 @@ install_items() {
 
 }
 
+# Usage: read_blueprint_files
+# Reads the files in the blueprint, and checks that each source exists and can
+# be read, and that each target is a directory underneath wp-content. Adds
+# them to copy_sources and copy_targets. See copy_files.
+read_blueprint_files() {
+
+	local -a entries
+	read_blueprint entries '.files[] | .source, .target'
+
+	local i source target source_path target_path where
+	for (( i = 0; i < ${#entries[@]}; i += 2 )); do
+
+		source=${entries[i]}
+		target=${entries[i + 1]}
+		where=".files[$(( i / 2 ))]"
+
+		source_path=$(blueprint_path "$source")
+		[[ $source && -e $source_path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where.source doesn't exist" 35
+		[[ -r $source_path ]] || die "Invalid blueprint $blueprint: \"$source\" in $where.source can't be read" 35
+
+		# shellcheck disable=SC2088 # A literal ~ is meant
+		[[ $target && $target != /* && $target != '~'* ]] || die "Invalid blueprint $blueprint: \"$target\" in $where.target is not a path relative to wp-content" 37
+		target_path=$(wp_content_path "$target") || die "Invalid blueprint $blueprint: \"$target\" in $where.target is outside wp-content" 38
+
+		copy_sources+=("$source_path")
+		copy_targets+=("$target_path")
+
+	done
+
+}
+
+# Usage: wp_content_path <path>
+# Echoes the relative <path> without empty parts and . parts, and with each ..
+# part taking away the part before it, or nothing if that leaves no part, which
+# is wp-content itself. Fails if a .. part leads out of wp-content. The path is
+# only read, not looked up, so a symbolic link in it is not followed.
+wp_content_path() {
+
+	local rest=$1 part
+	local -a parts=()
+
+	while [[ $rest ]]; do
+		part=${rest%%/*}
+		if [[ $rest == */* ]]; then rest=${rest#*/}; else rest=; fi
+		case $part in
+			'' | .) ;;
+			..) (( ${#parts[@]} )) || return 1; unset 'parts[-1]' ;;
+			*)  parts+=("$part") ;;
+		esac
+	done
+
+	local IFS=/
+	echo "${parts[*]}"
+
+}
+
+# Usage: copy_files
+# Copies each file in copy_sources into the directory with the same index in
+# copy_targets, which is relative to wp-content and is created if it's missing,
+# and merges the contents of each directory into it. A file with the same name
+# is replaced. Mutagen is flushed afterwards, so that the copies are visible
+# inside the container to the next WP-CLI step. Only uploads is mounted into
+# the container directly.
+copy_files() {
+
+	local i target
+	for i in "${!copy_sources[@]}"; do
+		target="$wp_path/wp-content/${copy_targets[i]}"
+		mkdir -p "$target"
+		if [[ -d ${copy_sources[i]} ]]; then
+			cp -R "${copy_sources[i]}/." "$target/"
+		else
+			cp "${copy_sources[i]}" "$target/"
+		fi
+	done
+
+	ddev mutagen sync
+
+}
+
 # Usage: resolve_wp_version <version>
 # Resolves a possibly-partial WordPress version (e.g. 6, 6.9 or 6.9.4) to the
 # highest released version that matches, by querying the WordPress.org API.
@@ -1075,6 +1185,35 @@ timezone_from_locale() {
 		zh_CN)         echo "Asia/Shanghai" ;;
 		*)             echo "" ;;
 	esac
+
+}
+
+# Usage: read_blueprint_wp_cli
+# Reads the WP-CLI commands in the blueprint. Bash has no arrays of arrays, so
+# the arguments of all the commands are kept one after another in
+# wp_cli_args, and the number of arguments of each command in wp_cli_lengths.
+read_blueprint_wp_cli() {
+	read_blueprint wp_cli_args '.wp_cli[][]'
+	read_blueprint wp_cli_lengths '.wp_cli[] | length'
+}
+
+# Usage: run_wp_cli_commands
+# Runs the WP-CLI commands from the blueprint in order, and stops mkwp at the
+# first that fails, with a message that shows the command quoted as a shell
+# would need it. `ddev wp` passes its arguments to WP-CLI without a shell, so
+# each reaches WP-CLI exactly as written. A command gets no input, so one that
+# asks for confirmation can't make the build wait for an answer.
+run_wp_cli_commands() {
+
+	local i offset=0 shown
+	local -a command
+
+	for i in "${!wp_cli_lengths[@]}"; do
+		command=("${wp_cli_args[@]:offset:wp_cli_lengths[i]}")
+		offset=$(( offset + wp_cli_lengths[i] ))
+		printf -v shown ' %q' "${command[@]}"
+		ddev wp "${command[@]}" < /dev/null || die "The WP-CLI command .wp_cli[$i] in the blueprint $blueprint failed with exit status $?: wp$shown" 40
+	done
 
 }
 
@@ -1178,6 +1317,14 @@ main() {
 	# The name of the theme to activate, and of the plugins to activate.
 	theme=
 	plugins_to_activate=()
+
+	# The files and directories to copy, and the directories underneath
+	# wp-content to copy them into, in arrays with the same indices.
+	copy_sources=() copy_targets=()
+
+	# The WP-CLI commands to run at the end. See read_blueprint_wp_cli.
+	wp_cli_args=()
+	wp_cli_lengths=()
 
 	# Parse the argument list from the command line
 	handle_arguments "$@"
@@ -1391,6 +1538,11 @@ main() {
 	install_items plugins
 	install_items mu_plugins
 
+	# Copy the blueprint's files into wp-content
+	if (( ${#copy_sources[@]} )); then
+		copy_files
+	fi
+
 	# Activate the theme, and the plugins marked for activation
 	ddev wp theme activate "$theme"
 	if (( ${#plugins_to_activate[@]} )); then
@@ -1405,6 +1557,9 @@ main() {
 		ddev wp config set WP_REDIS_HOST redis
 		ddev wp redis enable
 	fi
+
+	# Run the WP-CLI commands from the blueprint, in order
+	run_wp_cli_commands
 
 	# Launch site
 	ddev launch

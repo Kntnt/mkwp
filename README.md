@@ -192,8 +192,8 @@ BLUEPRINT
 
 	note
 		A note of your own, since JSON has no comments. It may also be
-		given in each item of themes, plugins and mu_plugins. mkwp
-		ignores it.
+		given in each item of themes, plugins, mu_plugins and
+		files. mkwp ignores it.
 
 	site
 		An object with the settings of the site: title, language, php
@@ -221,13 +221,34 @@ BLUEPRINT
 		with note.
 
 	files
-		Not supported yet. A blueprint with this key is rejected.
+		An array of the files and directories to copy into wp-content,
+		such as the media that a database refers to. An item is an
+		object with a local file or directory in source, the directory
+		to copy it into in target, and note. A relative source is
+		relative to the blueprint's directory. The target is relative
+		to wp-content, as in "uploads/2024/01", and is created if it's
+		missing. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. A file keeps its name,
+		and replaces a file with the same name. A directory's contents
+		are merged with what the target already has. Example:
+
+			"files": [
+			  { "source": "./media", "target": "uploads" },
+			  { "source": "./fonts/brand.woff2", "target": "fonts" }
+			]
 
 	database
 		Not supported yet. A blueprint with this key is rejected.
 
 	wp_cli
-		Not supported yet. A blueprint with this key is rejected.
+		An array of WP-CLI commands, which are run in the given order at
+		the end of the build. A command is an array of the arguments to
+		wp, without wp itself, such as
+		["option", "update", "blogdescription", "Just another site"].
+		Each argument reaches WP-CLI exactly as written, since no shell
+		is involved, so nothing needs quoting. A command gets no input,
+		so give --yes to a command that asks for confirmation. If a
+		command fails, mkwp stops without opening the site.
 
 	The source of a theme or plugin is one of these, recognized in this
 	order:
@@ -261,9 +282,11 @@ BLUEPRINT
 		  used, the Redis add-on, and started.
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
+		- The files are copied into wp-content.
 		- The theme to activate, and the plugins with
 		  "activate": true, are activated.
 		- Redis is enabled as object cache, if it is used.
+		- The WP-CLI commands in wp_cli are run, in order.
 		- The site is opened in the browser.
 
 DEPENDENCY
@@ -277,7 +300,7 @@ DEPENDENCY
 
 A blueprint is a JSON file that describes a site, and `mkwp --blueprint=<file> NAME` builds that site. The format, the rules for sources and the order in which a site is built are described under BLUEPRINT in the usage above, which also has an example.
 
-A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files, directories and PHP files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
+A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files, directories, PHP files and other files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
 
 `blueprint.schema.json` in this repository is a [JSON Schema](https://json-schema.org/) for blueprints. Name it in a blueprint's `$schema` key, as the example does, and an editor such as VS Code checks the blueprint and completes its keys as you write. The schema on `main` follows the latest mkwp. For the schema of a particular version, put its tag in place of `main`, as in `https://raw.githubusercontent.com/Kntnt/mkwp/v2.0.0/blueprint.schema.json`.
 
