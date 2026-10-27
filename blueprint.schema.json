@@ -101,8 +101,16 @@
 			"not": {}
 		},
 		"wp_cli": {
-			"description": "Not supported by this version of mkwp.",
-			"not": {}
+			"description": "WP-CLI commands to run, in the given order, at the end of the build: after Redis is enabled and before the site is opened. If a command fails, mkwp stops without opening the site.",
+			"type": "array",
+			"items": {
+				"description": "A WP-CLI command: the arguments to wp, without wp itself, such as [\"option\", \"update\", \"blogdescription\", \"Just another site\"]. Each argument reaches WP-CLI exactly as written, with no shell in between, so nothing needs quoting. The command gets no input, so give --yes to a command that asks for confirmation.",
+				"type": "array",
+				"minItems": 1,
+				"items": {
+					"type": "string"
+				}
+			}
 		}
 	},
 	"$defs": {

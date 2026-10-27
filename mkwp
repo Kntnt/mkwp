@@ -234,7 +234,14 @@ help() {
 		Not supported yet. A blueprint with this key is rejected.
 
 	\e[1mwp_cli\e[0m
-		Not supported yet. A blueprint with this key is rejected.
+		An array of WP-CLI commands, which are run in the given order at
+		the end of the build. A command is an array of the arguments to
+		wp, without wp itself, such as
+		[\"option\", \"update\", \"blogdescription\", \"Just another site\"].
+		Each argument reaches WP-CLI exactly as written, since no shell
+		is involved, so nothing needs quoting. A command gets no input,
+		so give --yes to a command that asks for confirmation. If a
+		command fails, mkwp stops without opening the site.
 
 	The source of a theme or plugin is one of these, recognized in this
 	order:
@@ -263,6 +270,7 @@ help() {
 		- The theme to activate, and the plugins with
 		  \"activate\": true, are activated.
 		- Redis is enabled as object cache, if it is used.
+		- The WP-CLI commands in wp_cli are run, in order.
 		- The site is opened in the browser.
 
 \e[1mDEPENDENCY\e[0m
@@ -460,9 +468,9 @@ check_blueprint() {
 	# Emits an error for each way the value breaks schema, where path is the
 	# value's path in the blueprint. A schema is an object with the JSON type
 	# or types the value may have, under type, the keys an object may have,
-	# under props, the keys it must have, under required, and the schema of
-	# the items in an array, under items. A key whose schema is null is not a
-	# known key.
+	# under props, the keys it must have, under required, the schema of the
+	# items in an array, under items, and whether an array must have items,
+	# under nonempty. A key whose schema is null is not a known key.
 	def check($schema; $path):
 		type as $type
 		| ([$schema.type] | flatten) as $types
@@ -476,6 +484,8 @@ check_blueprint() {
 			( ($schema.required // [])[] as $key | select(has($key) | not)
 				| "32 \($path | location) has no \"\($key)\"" ),
 			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
+		elif $type == "array" and $schema.nonempty and length == 0 then
+			"39 \($path | location) must not be empty"
 		elif $type == "array" then
 			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index])
 		else
@@ -520,8 +530,8 @@ check_blueprint() {
 	# database: not supported yet, so rejected as an unknown key.
 	def database: null;
 
-	# wp_cli: not supported yet, so rejected as an unknown key.
-	def wp_cli: null;
+	# wp_cli: each command is an array of the arguments to wp.
+	def wp_cli: {type: "array", items: {type: "array", nonempty: true, items: string}};
 
 	# The blueprint itself.
 	def blueprint: {type: "object", props: {
@@ -1103,6 +1113,35 @@ timezone_from_locale() {
 
 }
 
+# Usage: read_blueprint_wp_cli
+# Reads the WP-CLI commands in the blueprint. Bash has no arrays of arrays, so
+# the arguments of all the commands are kept one after another in
+# wp_cli_args, and the number of arguments of each command in wp_cli_lengths.
+read_blueprint_wp_cli() {
+	read_blueprint wp_cli_args '.wp_cli[][]'
+	read_blueprint wp_cli_lengths '.wp_cli[] | length'
+}
+
+# Usage: run_wp_cli_commands
+# Runs the WP-CLI commands from the blueprint in order, and stops mkwp at the
+# first that fails, with a message that shows the command quoted as a shell
+# would need it. `ddev wp` passes its arguments to WP-CLI without a shell, so
+# each reaches WP-CLI exactly as written. A command gets no input, so one that
+# asks for confirmation can't make the build wait for an answer.
+run_wp_cli_commands() {
+
+	local i offset=0 shown
+	local -a command
+
+	for i in "${!wp_cli_lengths[@]}"; do
+		command=("${wp_cli_args[@]:offset:wp_cli_lengths[i]}")
+		offset=$(( offset + wp_cli_lengths[i] ))
+		printf -v shown ' %q' "${command[@]}"
+		ddev wp "${command[@]}" < /dev/null || die "The WP-CLI command .wp_cli[$i] in the blueprint $blueprint failed with exit status $?: wp$shown" 40
+	done
+
+}
+
 # Usage: destroy_site
 # Deletes the DDEV project named $name, including its database, and removes
 # the site directory from the file system. Asks for confirmation first.
@@ -1207,6 +1246,10 @@ main() {
 	# The files and directories to copy, and the directories underneath
 	# wp-content to copy them into, in arrays with the same indices.
 	copy_sources=() copy_targets=()
+
+	# The WP-CLI commands to run at the end. See read_blueprint_wp_cli.
+	wp_cli_args=()
+	wp_cli_lengths=()
 
 	# Parse the argument list from the command line
 	handle_arguments "$@"
@@ -1439,6 +1482,9 @@ main() {
 		ddev wp config set WP_REDIS_HOST redis
 		ddev wp redis enable
 	fi
+
+	# Run the WP-CLI commands from the blueprint, in order
+	run_wp_cli_commands
 
 	# Launch site
 	ddev launch
