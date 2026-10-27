@@ -32,26 +32,19 @@ help() {
 	The site can be described by a blueprint, a JSON file given with
 	\e[1m-B\e[0m or \e[1m--blueprint\e[0m. See \e[1mBLUEPRINT\e[0m below.
 
-	If a flag is not specified on the command line, the corresponding
-	option is in the first place set to the value in the blueprint, if
-	there is one and it has a value for the option, in the second place
-	to a value read from the configuration file specified with \e[1m-c\e[0m or
-	\e[1m--config\e[0m, in the third place to a value read from the configuration
-	file \e[1m~/.mkwp\e[0m, and in the fourth place to a default value.
+	Your personal settings, and the blueprint to use when none is given
+	with \e[1m-B\e[0m, can be kept in a configuration file. See \e[1mCONFIGURATION\e[0m
+	below.
 
-	If the configuration file \e[1m~/.mkwp\e[0m is missing, an empty one will be
-	created.
-
-	A configuration file should be formatted so that each line starting
-	with the name of a long format flag, excluding leading double dashes
-	(e.g. \e[1memail\e[0m instead of \e[1m--email\e[0m), followed by an equal sign, where the
-	corresponding flag has not been specified on the command line, the flag
-	is specified with the option set to the value following the equal sign.
-	White space may be used around the equal sign.
-	Examples:
-
-		title = WordPress Test Site
-		php=8.5
+	An option given on the command line always takes precedence. If a
+	site setting (title, language, PHP or WordPress version, or Redis)
+	is not given there, it is in the first place set to the value in the
+	blueprint, if there is one and it has the setting, and in the second
+	place to a default value. If a personal setting (email, user,
+	password or directory) is not given there, it is in the first place
+	set to the value in the configuration file specified with \e[1m-c\e[0m or
+	\e[1m--config\e[0m, in the second place to the value in the configuration
+	file \e[1m~/.mkwp\e[0m, and in the third place to a default value.
 
 \e[1mOPTIONS\e[0m
 	\e[1m-t <title>\e[0m
@@ -135,12 +128,18 @@ help() {
 		Adds a Redis service to the site and enables it as WordPress
 		object cache backend: the Redis Object Cache plugin is
 		installed and activated, and its object-cache.php drop-in is
-		enabled. In a configuration file, use \e[1mredis = true\e[0m.
+		enabled.
 
 	\e[1m-B <file>\e[0m
 	\e[1m--blueprint=<file>\e[0m
-		Builds the site that the blueprint <file> describes. See
-		\e[1mBLUEPRINT\e[0m below.
+		Builds the site that the blueprint <file> describes, instead
+		of the one a configuration file names, if any. See \e[1mBLUEPRINT\e[0m
+		below.
+
+	\e[1m--no-blueprint\e[0m
+		Builds the site without a blueprint, even if a configuration
+		file names one. Can't be given together with \e[1m-B\e[0m or
+		\e[1m--blueprint\e[0m.
 
 	\e[1m--destroy\e[0m
 		Destroys the site [NAME]: deletes the DDEV project, including
@@ -150,12 +149,52 @@ help() {
 
 	\e[1m-c <file>\e[0m
 	\e[1m--config=<file>\e[0m
-		Reads configuration from a file with the path <file>.
-		See description above for details.
+		Reads personal settings, and the blueprint to use, from the
+		configuration file <file>, or from standard input if <file>
+		is -. See \e[1mCONFIGURATION\e[0m below.
 
 	\e[1m-h\e[0m
 	\e[1m--help\e[0m
 		Display this help and exit.
+
+\e[1mCONFIGURATION\e[0m
+	mkwp reads the configuration file given with \e[1m-c\e[0m or \e[1m--config\e[0m, if
+	any, and the configuration file \e[1m~/.mkwp\e[0m. If \e[1m~/.mkwp\e[0m is missing, an
+	empty one is created.
+
+	A configuration file holds your personal settings, and may name a
+	blueprint. Each line is a key, an equal sign and a value, with
+	optional white space around the equal sign. Blank lines and lines
+	starting with # are ignored. Any other line stops mkwp. Example:
+
+		# Personal settings
+		email = jane@example.com
+		user = jane
+		directory = /Users/jane/Sites
+		blueprint = ~/blueprints/default.json
+
+	The keys are:
+
+	\e[1memail\e[0m
+	\e[1muser\e[0m
+	\e[1mpassword\e[0m
+	\e[1mdirectory\e[0m
+		The same as the options with the same names.
+
+	\e[1mblueprint\e[0m
+		The blueprint to build the site from when none is given with
+		\e[1m-B\e[0m or \e[1m--blueprint\e[0m. A path starting with ~/ is in your home
+		directory, and a relative path is relative to the directory of
+		the configuration file, or to the current directory if the
+		configuration is read from standard input. A blueprint named
+		in the file given with \e[1m-c\e[0m is used instead of one named in
+		\e[1m~/.mkwp\e[0m. Give \e[1m--no-blueprint\e[0m to build a site without it.
+
+	Before mkwp 2.0.0, a configuration file could also hold the site
+	settings \e[1mname\e[0m, \e[1mdirname\e[0m, \e[1mtitle\e[0m, \e[1mlanguage\e[0m, \e[1mthemes\e[0m, \e[1mplugins\e[0m,
+	\e[1mmu-plugins\e[0m, \e[1mphp\e[0m, \e[1mwp\e[0m and \e[1mredis\e[0m. Now they stop mkwp. Give \e[1mname\e[0m
+	and \e[1mdirname\e[0m on the command line, and the others in a blueprint
+	or as options.
 
 \e[1mBLUEPRINT\e[0m
 	A blueprint is a JSON file that describes a site. Keep it, and the
@@ -335,6 +374,7 @@ handle_arguments() {
 			-W | --wp=*) extract_argument wp "$@"; shift $shift_n ;;
 			-R | --redis) redis=true; shift ;;
 			-B | --blueprint=*) extract_argument blueprint "$@"; shift $shift_n ;;
+			--no-blueprint) no_blueprint=true; shift ;;
 			--destroy) destroy=true; shift ;;
 			-c | --config=*) extract_argument config "$@"; shift $shift_n ;;
 			*) if [[ -z "$name" ]]; then name="$1"; shift; else die "Error: Invalid flag: $1" 2; fi ;;
@@ -346,57 +386,86 @@ handle_arguments() {
 }
 
 # Usage: handle_config_files
-# Reads options from the configuration file given with -c/--config, if any,
-# and from ~/.mkwp, without overriding options already set on the command line.
+# Reads the personal settings, and the blueprint, from the configuration file
+# given with -c/--config, if any, and then from ~/.mkwp, without overriding
+# what is already set. So the command line takes precedence over the file
+# given with -c, and that file over ~/.mkwp.
 handle_config_files() {
 
-	# Create a list of files to read configuration from
-	local files=()
-
-	# Add config file to the list of configuration files if it exists and is readable
+	# Read the file given with -c, or standard input if it's -. A relative
+	# path to a blueprint is relative to the file's directory, and to the
+	# current directory in standard input.
 	if [[ $config ]]; then
-
-		# Use /dev/stdin if config file is -
-		if [[ "$config" == "-" ]]; then
-			config="/dev/stdin"
+		local label=$config dir
+		dir=$(dirname "$config")
+		if [[ $config == - ]]; then
+			config=/dev/stdin label='standard input' dir=
 		fi
-
-		# Validate config file
 		[[ -r $config ]] || die "Invalid path to config file" 10
-
-		# Add the config file to the list of files to read configuration from
-		files+=("$config")
-
+		read_config_file "$config" "$label" "$dir"
 	fi
 
-	# Add ~/.mkwp file to the list of configuration files. Create ~/.mkwp if it doesn't exist.
+	# Read ~/.mkwp, which is created if it doesn't exist
 	if [[ ! -e ~/.mkwp ]]; then
 		touch ~/.mkwp || die "Couldn't create ~/.mkwp" 12
 	fi
 	[[ -r ~/.mkwp ]] || die "Couldn't read ~/.mkwp" 12
-	files+=(~/.mkwp)
+	# shellcheck disable=SC2088 # The label is meant to show ~
+	read_config_file ~/.mkwp '~/.mkwp' "$HOME"
 
-	# Read config files
-	while IFS= read -r line || [[ "$line" ]]; do
+}
 
-		# Validate the line structure
-		if [[ $line =~ ^(name|title|directory|dirname|email|user|password|language|themes|plugins|mu-plugins|php|wp|redis)[[:space:]]*=[[:space:]]*(.*) ]]; then
+# Usage: read_config_file <file> <label> <directory>
+# Reads the configuration file <file>, which messages call <label>, and sets
+# each setting in it that isn't already set. A relative path to a blueprint is
+# relative to <directory>, or kept as it is if <directory> is empty.
+read_config_file() {
 
-			# Extract keyword and value
-			local key="${BASH_REMATCH[1]//-/_}"
-			local value="${BASH_REMATCH[2]}"
+	local file=$1 label=$2 dir=$3
+	local line key value number=0
 
-			# If the global variable named in $key is empty, assign it the
-			# value in $value. N.B. We know that $key contains a name of
-			# an already declared global variable, since all variables names
-			# in the regex above are declared before this function is called.
-			if [[ -z ${!key} ]]; then
-				eval "$key=$(printf "%q" "$value")"
+	while IFS= read -r line || [[ $line ]]; do
+
+		(( ++number ))
+
+		# Each setting that isn't already set is set to the value
+		if [[ $line =~ ^[[:space:]]*(email|user|password|directory|blueprint)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+
+			key=${BASH_REMATCH[1]}
+			value=${BASH_REMATCH[2]}
+			[[ -z ${!key} && $value ]] || continue
+
+			# A blueprint's path may start with ~, and may be relative
+			if [[ $key == blueprint ]]; then
+				# shellcheck disable=SC2088 # A literal ~ is meant
+				case $value in
+					'~')   value=$HOME ;;
+					'~/'*) value=$HOME/${value#'~/'} ;;
+					/*)    ;;
+					*)     value=${dir:+$dir/}$value ;;
+				esac
+				blueprint_named_in=$label
 			fi
 
+			printf -v "$key" '%s' "$value"
+
+		# A site setting belongs in a blueprint, or on the command line
+		elif [[ $line =~ ^[[:space:]]*(name|dirname|title|language|themes|plugins|mu-plugins|php|wp|redis)[[:space:]]*= ]]; then
+
+			key=${BASH_REMATCH[1]}
+			case $key in
+				name)    die "Invalid configuration in $label: name on line $number belongs on the command line now, as NAME" 41 ;;
+				dirname) die "Invalid configuration in $label: dirname on line $number belongs on the command line now, as -D or --dirname" 41 ;;
+				themes | plugins | mu-plugins) die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .${key//-/_}" 41 ;;
+				*)       die "Invalid configuration in $label: $key on line $number belongs in a blueprint now, as .site.$key" 41 ;;
+			esac
+
+		# Blank lines and comments are ignored, and anything else is an error
+		elif [[ ! $line =~ ^[[:space:]]*(#|$) ]]; then
+			die "Invalid configuration in $label: line $number is neither blank, a comment nor a setting: $line" 42
 		fi
 
-	done < <(cat "${files[@]}")
+	done < "$file"
 
 }
 
@@ -410,7 +479,7 @@ handle_blueprint() {
 	command -v jq > /dev/null || die "mkwp needs jq to read a blueprint. Install jq and try again." 27
 
 	# The blueprint must be a file that can be read
-	[[ -f $blueprint && -r $blueprint ]] || die "Couldn't read the blueprint $blueprint" 28
+	[[ -f $blueprint && -r $blueprint ]] || die "Couldn't read the blueprint $blueprint${blueprint_named_in:+, named in $blueprint_named_in}" 28
 
 	# Check the blueprint's structure before anything is read from it
 	check_blueprint
@@ -1220,9 +1289,14 @@ main() {
 	wp=
 	redis=
 	blueprint=
+	no_blueprint=
 	destroy=
 	config=
 	shift_n=
+
+	# The configuration file that named the blueprint, if one did, as its
+	# messages call it. See read_config_file.
+	blueprint_named_in=
 
 	# The blueprint's directory, which its relative paths are relative to,
 	# and the outputs of read_blueprint_item.
@@ -1262,13 +1336,20 @@ main() {
 		destroy_site
 	fi
 
-	# Read the blueprint, if one is given
+	# --no-blueprint only makes sense without a blueprint on the command line
+	[[ -z $no_blueprint || -z $blueprint ]] || die "--no-blueprint and -B/--blueprint can't be used together." 43
+
+	# Read the configuration files, which may name the blueprint
+	handle_config_files
+
+	# Read the blueprint, if there is one. With --no-blueprint there is none,
+	# even if a configuration file names one.
+	if [[ $no_blueprint ]]; then
+		blueprint=
+	fi
 	if [[ $blueprint ]]; then
 		handle_blueprint
 	fi
-
-	# Parse config files
-	handle_config_files
 
 	# Tidy up, fill in default values and add some extra variables.
 	title=${title:=${name^}}
@@ -1292,12 +1373,11 @@ main() {
 	add_option_items plugins "$plugins"
 	add_option_items mu_plugins "$mu_plugins"
 
-	# Normalize the redis option, which may come from a config file as text
-	case "${redis,,}" in
-		'' | false | no | 0) redis= ;;
-		true | yes | 1)      redis=true ;;
-		*)                   die "Invalid value for redis: $redis" 24 ;;
-	esac
+	# Redis is used if -R is given or the blueprint sets it to true, and not if
+	# the blueprint sets it to false
+	if [[ $redis != true ]]; then
+		redis=
+	fi
 
 	# Echo all parameters used by the script if debugging.
 	if [[ $MKWP_DEBUG ]]; then

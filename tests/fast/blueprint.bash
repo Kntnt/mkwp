@@ -224,11 +224,13 @@ test_lets_an_option_take_precedence_over_the_blueprint() {
 	assert_nothing_created
 }
 
-test_lets_the_blueprint_take_precedence_over_a_configuration_file() {
+# A site setting belongs in the blueprint, and not in a configuration file,
+# even when there is a blueprint.
+test_rejects_a_site_setting_in_a_configuration_file_with_a_blueprint() {
 	write_blueprint '{"site": {"php": "8.4"}}'
-	echo 'php = 9.1' > "$sandbox/config"
+	echo 'php = 8.3' > "$sandbox/config"
 	run_mkwp -m test@example.com -c "$sandbox/config" -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
+	assert_rejected 41 "Invalid configuration in $sandbox/config: php on line 1 belongs in a blueprint now, as .site.php"
 	assert_nothing_created
 }
 
