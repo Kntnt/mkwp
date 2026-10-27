@@ -109,6 +109,77 @@ without_php_deprecations() {
 
 }
 
+# Usage: make_extension <directory> <type> <name> <version>
+# Writes a minimal theme or plugin, as <type> says, named <name> and at version
+# <version>, into <directory>.
+make_extension() {
+
+	mkdir -p "$1"
+
+	case $2 in
+		theme)
+			printf '/*\nTheme Name: %s\nVersion: %s\n*/\n' "$3" "$4" > "$1/style.css"
+			echo '<?php' > "$1/index.php"
+			;;
+		plugin)
+			printf '<?php\n/*\nPlugin Name: %s\nVersion: %s\n*/\n' "$3" "$4" > "$1/$3.php"
+			;;
+	esac
+
+}
+
+# Usage: make_zip <zip-file> <type> <name> <version>
+# Writes a zip file at <zip-file> with a minimal theme or plugin, as <type>
+# says, named <name> and at version <version>, in a directory named <name>.
+make_zip() {
+
+	local dir
+	dir=$(mktemp -d "$run_dir/zip.XXXXXX")
+	make_extension "$dir/$3" "$2" "$3" "$4"
+	(cd "$dir" && zip -qr - "$3") > "$1"
+	rm -rf "$dir"
+
+}
+
+# Usage: make_repository <repository> <type> <name> <version>...
+# Makes a bare Git repository at <repository> with a minimal theme or plugin,
+# as <type> says, named <name>. It has a commit for each <version>, in the
+# given order and a minute apart, and each commit is tagged v<version> unless
+# <version> ends with -dev.
+make_repository() {
+
+	local repository=$1 type=$2 name=$3
+	shift 3
+
+	local work version time=1700000000
+	work=$(mktemp -d "$run_dir/repository.XXXXXX")
+	fixture_git init -q -b main "$work"
+
+	for version in "$@"; do
+		(( time += 60 ))
+		make_extension "$work" "$type" "$name" "$version"
+		fixture_git -C "$work" add -A
+		GIT_AUTHOR_DATE="@$time +0000" GIT_COMMITTER_DATE="@$time +0000" fixture_git -C "$work" commit -qm "Version $version"
+		if [[ $version != *-dev ]]; then
+			fixture_git -C "$work" tag "v$version"
+		fi
+	done
+
+	fixture_git clone -q --bare "$work" "$repository"
+	rm -rf "$work"
+
+}
+
+# Usage: fixture_git <arg>...
+# Runs git with <arg>... without the user's or the system's configuration, so
+# that settings such as commit signing can't get in the way of a fixture.
+fixture_git() {
+	GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+		GIT_AUTHOR_NAME=mkwp GIT_AUTHOR_EMAIL=mkwp@example.com \
+		GIT_COMMITTER_NAME=mkwp GIT_COMMITTER_EMAIL=mkwp@example.com \
+		git "$@"
+}
+
 # Usage: destroy_sites
 # Destroys each registered site that DDEV has, with mkwp --destroy, and then
 # forgets them all. Only a name with the run's prefix is ever destroyed.

@@ -15,7 +15,7 @@ To update mkwp, run the same commands again. To install a particular version, pu
 
 Install the file from a release, not from a clone of the repository. The version is written into the file when a release is built, so a copy of `mkwp` taken straight from the repository has none and calls itself `unreleased`. To build the file from a clone, run `bin/build-release-assets`: it writes `release-assets/mkwp`, with the version taken from git.
 
-mkwp needs a running Docker provider and [DDEV](https://ddev.com/) on your `PATH`.
+mkwp needs a running Docker provider and [DDEV](https://ddev.com/) on your `PATH`. To build a site from a blueprint, it also needs [jq](https://jqlang.org/), and `unzip` if the blueprint has local zip files. Current macOS comes with both.
 
 ## Usage
 
@@ -31,11 +31,15 @@ DESCRIPTION
 	Makes a local WordPress site with the domain name.ddev.site where
 	name is the domain name provided as the argument [NAME].
 
+	The site can be described by a blueprint, a JSON file given with
+	-B or --blueprint. See BLUEPRINT below.
+
 	If a flag is not specified on the command line, the corresponding
-	option is in the first place set to a value read from the configuration
-	file specified with -c or --config, in the second place to a value read
-	from the configuration file ~/.mkwp, and in the third place to a
-	default value.
+	option is in the first place set to the value in the blueprint, if
+	there is one and it has a value for the option, in the second place
+	to a value read from the configuration file specified with -c or
+	--config, in the third place to a value read from the configuration
+	file ~/.mkwp, and in the fourth place to a default value.
 
 	If the configuration file ~/.mkwp is missing, an empty one will be
 	created.
@@ -135,6 +139,11 @@ OPTIONS
 		installed and activated, and its object-cache.php drop-in is
 		enabled. In a configuration file, use redis = true.
 
+	-B <file>
+	--blueprint=<file>
+		Builds the site that the blueprint <file> describes. See
+		BLUEPRINT below.
+
 	--destroy
 		Destroys the site [NAME]: deletes the DDEV project, including
 		its database, and removes the site directory from the file
@@ -150,10 +159,113 @@ OPTIONS
 	--help
 		Display this help and exit.
 
+BLUEPRINT
+	A blueprint is a JSON file that describes a site. Keep it, and the
+	files it refers to, in a directory of their own, which can be a Git
+	repository and cloned anywhere. mkwp checks the whole blueprint, and
+	every file it refers to, before it makes anything. Example:
+
+		{
+		  "$schema": "https://raw.githubusercontent.com/Kntnt/mkwp/main/blueprint.schema.json",
+		  "note": "Our starting point for client sites",
+		  "site": { "title": "Client Site", "language": "sv_SE", "php": "8.4", "redis": true },
+		  "themes": [
+		    "twentytwentyfive",
+		    { "source": "./themes/client-child.zip", "activate": true }
+		  ],
+		  "plugins": [
+		    { "source": "query-monitor", "activate": true },
+		    { "source": "git@github.com:example/private-plugin.git", "activate": true },
+		    { "source": "./plugins/commercial-plugin.zip", "note": "Licensed to us" }
+		  ],
+		  "mu_plugins": [
+		    "https://raw.githubusercontent.com/Kntnt/kntnt-adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php"
+		  ]
+		}
+
+	A blueprint is an object with these keys, all of them optional:
+
+	$schema
+		The JSON Schema of the blueprint, which lets an editor check
+		and complete it. mkwp ignores it.
+
+	note
+		A note of your own, since JSON has no comments. It may also be
+		given in each item of themes, plugins and mu_plugins. mkwp
+		ignores it.
+
+	site
+		An object with the settings of the site: title, language, php
+		and wp, which are strings, and redis, which is true or false.
+		Each is checked like the option with the same name, and is
+		replaced by the option when it's given on the command line.
+
+	themes
+	plugins
+		Arrays of the themes and plugins to install. An item is a
+		source, as described below, or an object with the source in
+		source, and with activate (true or false) and note. Each item
+		with "activate": true is activated, and at most one theme may
+		have it. If no theme has it, the last theme is activated.
+		Themes and plugins given with -T and -P are installed after
+		the blueprint's, and the last theme given with -T is activated
+		instead of the blueprint's.
+
+	mu_plugins
+		An array of the mu-plugins to install. An item is the URL of a
+		PHP file, or an object with the URL in source, and with note.
+
+	files
+		Not supported yet. A blueprint with this key is rejected.
+
+	database
+		Not supported yet. A blueprint with this key is rejected.
+
+	wp_cli
+		Not supported yet. A blueprint with this key is rejected.
+
+	The source of a theme or plugin is one of these, recognized in this
+	order:
+
+		A local path, which starts with ./, ../, / or ~/, to a zip
+		file. A relative path is relative to the blueprint's directory.
+		The theme or plugin is named after the directory in the zip
+		file, so the file's own name doesn't matter.
+
+		A Git repository, whose URL ends with .git. Any URL that Git
+		accepts works, including SSH, so a private repository is
+		reached with your own SSH setup. The latest tag is checked out,
+		or the default branch if there is no tag.
+
+		A URL, which starts with http:// or https://, to a zip file.
+
+		A slug on WordPress.org, which is anything else.
+
+	A site is built in this order:
+
+		- DDEV is configured, with the cron add-on and, if Redis is
+		  used, the Redis add-on, and started.
+		- WordPress is downloaded and installed.
+		- The themes, plugins and mu-plugins are installed.
+		- The theme to activate, and the plugins with
+		  "activate": true, are activated.
+		- Redis is enabled as object cache, if it is used.
+		- The site is opened in the browser.
+
 DEPENDENCY
 	This command requires that a Docker provider is installed and running
 	on your system and that DDEV is properly installed and in your path.
+	A blueprint also requires jq, and a blueprint with a local zip file
+	requires unzip.
 ```
+
+## Blueprints
+
+A blueprint is a JSON file that describes a site, and `mkwp --blueprint=<file> NAME` builds that site. The format, the rules for sources and the order in which a site is built are described under BLUEPRINT in the usage above, which also has an example.
+
+A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
+
+`blueprint.schema.json` in this repository is a [JSON Schema](https://json-schema.org/) for blueprints. Name it in a blueprint's `$schema` key, as the example does, and an editor such as VS Code checks the blueprint and completes its keys as you write. The schema on `main` follows the latest mkwp. For the schema of a particular version, put its tag in place of `main`, as in `https://raw.githubusercontent.com/Kntnt/mkwp/v2.0.0/blueprint.schema.json`.
 
 ## Testing
 

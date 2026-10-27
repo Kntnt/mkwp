@@ -1,0 +1,163 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "mkwp blueprint",
+	"description": "A WordPress site for mkwp to build, with mkwp --blueprint=<file> NAME.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": {
+			"description": "The JSON Schema of the blueprint, for editors. mkwp ignores it.",
+			"type": "string"
+		},
+		"note": {
+			"$ref": "#/$defs/note"
+		},
+		"site": {
+			"description": "The settings of the site. Each is checked like the option with the same name, and an option given on the command line replaces it.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"title": {
+					"description": "The title of the site, as with -t/--title.",
+					"type": "string",
+					"pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+				},
+				"language": {
+					"description": "The language of the site, as a WordPress locale such as sv_SE, as with -l/--language.",
+					"type": "string",
+					"pattern": "^[a-z]{2}(_[A-Z]{2})?$"
+				},
+				"php": {
+					"description": "The PHP version, as with -V/--php.",
+					"type": "string",
+					"pattern": "^(7\\.[0-4]|8\\.[0-5])$"
+				},
+				"wp": {
+					"description": "The WordPress version, given as <major>, <major>.<minor> or <major>.<minor>.<patch>, as with -W/--wp.",
+					"type": "string",
+					"pattern": "^[0-9]+(\\.[0-9]+){0,2}$"
+				},
+				"redis": {
+					"description": "Whether to use Redis as object cache, as with -R/--redis.",
+					"type": "boolean"
+				}
+			}
+		},
+		"themes": {
+			"description": "The themes to install. The theme with \"activate\": true is activated, or, if no theme has it, the last one. A theme given with -T/--themes is activated instead.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/item"
+			},
+			"contains": {
+				"$ref": "#/$defs/marked"
+			},
+			"minContains": 0,
+			"maxContains": 1
+		},
+		"plugins": {
+			"description": "The plugins to install. Those with \"activate\": true are activated.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/item"
+			}
+		},
+		"mu_plugins": {
+			"description": "The mu-plugins to install.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/mu_plugin"
+			}
+		},
+		"files": {
+			"description": "Not supported by this version of mkwp.",
+			"not": {}
+		},
+		"database": {
+			"description": "Not supported by this version of mkwp.",
+			"not": {}
+		},
+		"wp_cli": {
+			"description": "Not supported by this version of mkwp.",
+			"not": {}
+		}
+	},
+	"$defs": {
+		"note": {
+			"description": "A note of your own, since JSON has no comments. mkwp ignores it.",
+			"type": "string"
+		},
+		"item": {
+			"description": "A theme or plugin: its source, or an object with its source.",
+			"oneOf": [
+				{
+					"$ref": "#/$defs/source"
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"source"
+					],
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/source"
+						},
+						"activate": {
+							"description": "Whether to activate the theme or plugin. At most one theme may have it.",
+							"type": "boolean"
+						},
+						"note": {
+							"$ref": "#/$defs/note"
+						}
+					}
+				}
+			]
+		},
+		"source": {
+			"description": "Where a theme or plugin comes from, recognized in this order: a local zip file, if it starts with ./, ../, / or ~/, where a relative path is relative to the blueprint's directory; a Git repository, if it ends with .git, where the latest tag is checked out; a zip file at a URL, if it starts with http:// or https://; and otherwise a slug on WordPress.org.",
+			"type": "string",
+			"pattern": "^(\\./|\\.\\./|/|~/|https?://)|\\.git$|^[a-z0-9_-]+$"
+		},
+		"marked": {
+			"description": "A theme or plugin with \"activate\": true.",
+			"type": "object",
+			"required": [
+				"activate"
+			],
+			"properties": {
+				"activate": {
+					"const": true
+				}
+			}
+		},
+		"mu_plugin": {
+			"description": "An mu-plugin: its source, or an object with its source.",
+			"oneOf": [
+				{
+					"$ref": "#/$defs/mu_plugin_source"
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"source"
+					],
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/mu_plugin_source"
+						},
+						"note": {
+							"$ref": "#/$defs/note"
+						}
+					}
+				}
+			]
+		},
+		"mu_plugin_source": {
+			"description": "Where an mu-plugin comes from: the URL of a PHP file.",
+			"type": "string",
+			"pattern": "^https?://.+\\.php$"
+		}
+	}
+}
