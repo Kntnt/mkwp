@@ -204,10 +204,10 @@ help() {
 		source, as described below, or an object with the source in
 		\e[1msource\e[0m, and with \e[1mactivate\e[0m (true or false) and \e[1mnote\e[0m. Each item
 		with \"activate\": true is activated, and at most one theme may
-		have it. If no theme has it, the last theme is activated.
-		Themes and plugins given with \e[1m-T\e[0m and \e[1m-P\e[0m are installed after
-		the blueprint's, and the last theme given with \e[1m-T\e[0m is activated
-		instead of the blueprint's.
+		have it. If no theme has it, the last theme is activated,
+		unless there is a database. Themes and plugins given with \e[1m-T\e[0m
+		and \e[1m-P\e[0m are installed after the blueprint's, and the last theme
+		given with \e[1m-T\e[0m is activated instead of the blueprint's.
 
 	\e[1mmu_plugins\e[0m
 		An array of the mu-plugins to install. An item is the URL of a
@@ -217,7 +217,27 @@ help() {
 		Not supported yet. A blueprint with this key is rejected.
 
 	\e[1mdatabase\e[0m
-		Not supported yet. A blueprint with this key is rejected.
+		An object with a database to start the site from: a dump of
+		another WordPress site in \e[1mdump\e[0m, and the database server to
+		import it into in \e[1mserver\e[0m. The dump is plain SQL in a .sql file
+		or gzip-compressed SQL in a .sql.gz file, and its tables must
+		have the prefix wp_. A relative path is relative to the
+		blueprint's directory. The server is given as
+		mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with
+		a version that DDEV has. If it's omitted, DDEV's default is
+		used.
+
+		The site keeps the users, settings and active theme and
+		plugins of the dump, but for what is given explicitly: the
+		themes and plugins with \"activate\": true and the theme given
+		with \e[1m-T\e[0m are activated, and a title and a language given
+		replace those of the dump. What mkwp gives a new site by
+		default, such as a title made from NAME, pretty permalinks
+		and the timezone of the language, is not applied. The user
+		is made an administrator with the email address and
+		password given, and is created if the dump doesn't have it.
+		A dump can hold secrets, such as licence keys and API
+		credentials, which mkwp doesn't remove.
 
 	\e[1mwp_cli\e[0m
 		Not supported yet. A blueprint with this key is rejected.
@@ -245,6 +265,11 @@ help() {
 		  used, the Redis add-on, and started.
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
+		- The dump is imported, if there is one. The old address is
+		  replaced by the site's, also where it's JSON-escaped, the
+		  database is upgraded, the user is made an administrator,
+		  the title and language given are applied, and the rewrite
+		  rules and the object cache are flushed.
 		- The theme to activate, and the plugins with
 		  \"activate\": true, are activated.
 		- Redis is enabled as object cache, if it is used.
@@ -497,8 +522,11 @@ check_blueprint() {
 	# files: not supported yet, so rejected as an unknown key.
 	def files: null;
 
-	# database: not supported yet, so rejected as an unknown key.
-	def database: null;
+	# database: a dump to import, and the database server to import it into.
+	def database: {type: "object", required: ["dump"], props: {
+		dump: string,
+		server: string
+	}};
 
 	# wp_cli: not supported yet, so rejected as an unknown key.
 	def wp_cli: null;
@@ -573,23 +601,21 @@ read_blueprint_site() {
 
 # Usage: read_blueprint_themes
 # Reads the themes in the blueprint. The theme marked with "activate": true is
-# the one to activate, or, if none is marked, the last one.
+# the one to activate. The last theme is noted too, since it is activated if
+# none is marked and there is no database.
 read_blueprint_themes() {
 
 	local -a indices
 	read_blueprint indices '.themes | keys[]'
 
-	local i marked=
+	local i
 	for i in "${indices[@]}"; do
 		read_blueprint_item themes "$i"
 		if [[ $item_activate == true ]]; then
-			[[ -z $marked ]] || die "Invalid blueprint $blueprint: .themes has more than one theme with \"activate\": true" 36
-			marked=$item_name
+			[[ -z $theme ]] || die "Invalid blueprint $blueprint: .themes has more than one theme with \"activate\": true" 36
+			theme=$item_name
 		fi
-
-		# Activate the marked theme, or the last one read so far
-		theme=${marked:-$item_name}
-
+		last_theme=$item_name
 	done
 
 }
@@ -1003,6 +1029,135 @@ timezone_from_locale() {
 
 }
 
+# Usage: read_blueprint_database
+# Reads the database in the blueprint: the dump to import, which must be plain
+# or gzip-compressed SQL, and the database server to import it into, if one is
+# given. DDEV takes any file whose name ends in .gz for compressed SQL, and
+# imports a file it can't decompress as it is, so the name must end in .sql or
+# .sql.gz. Which versions of a server DDEV has depends on the version of DDEV,
+# so only the form of the server is checked here, and DDEV checks the version.
+read_blueprint_database() {
+
+	local -a fields
+	read_blueprint fields '.database | .dump, (.server | values)'
+	local dump=${fields[0]} server=${fields[1]-}
+
+	if (( ${#fields[@]} > 1 )); then
+		[[ $server =~ ^(mariadb|mysql):[0-9]+\.[0-9]+$ ]] || die "Invalid blueprint $blueprint: \"$server\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>" 200
+		database_server=$server
+	fi
+
+	local path
+	path=$(blueprint_path "$dump")
+	[[ -e $path ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump doesn't exist" 35
+	[[ ! -d $path ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump is a directory, not a .sql or .sql.gz file" 35
+	[[ -r $path ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump can't be read" 35
+	[[ $path == *.sql || $path == *.sql.gz ]] || die "Invalid blueprint $blueprint: \"$dump\" in .database.dump is not a .sql or .sql.gz file" 35
+
+	# Keep the path without parts such as ./, since messages show it
+	database_dump=$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")
+
+}
+
+# Usage: adopt_database <source>
+# Makes the database that was just imported from <source>, which only names it
+# in messages, the site's own. It must be a WordPress site with the table
+# prefix wp_. Its old address is replaced by the site's, the database is
+# upgraded to the version of WordPress that was installed, mkwp's user is made
+# an administrator with the given email address and password, the site
+# settings that were given explicitly are applied, and the caches are flushed.
+# All other users, and all settings that were not given explicitly, are kept.
+# WP-CLI runs without plugins and themes where it can, so that one in the
+# database that fails under WP-CLI can't stop it.
+adopt_database() {
+
+	local source=$1
+
+	ddev wp core is-installed --skip-plugins --skip-themes &> /dev/null || die "The database from $source is not a WordPress site with the table prefix wp_, which is the only prefix mkwp supports." 201
+
+	# Replace the old address, which is in home and siteurl. They differ if
+	# WordPress was in a subdirectory of the old site, and then the shorter is
+	# part of the longer. The longer is replaced first, so that the
+	# subdirectory goes with it, since WordPress is in the site's root here.
+	local home siteurl longer shorter
+	home=$(wp_value option get home)
+	siteurl=$(wp_value option get siteurl)
+	if (( ${#siteurl} >= ${#home} )); then
+		longer=${siteurl%/} shorter=${home%/}
+	else
+		longer=${home%/} shorter=${siteurl%/}
+	fi
+	replace_address "$longer"
+	if [[ $shorter != "$longer" ]]; then
+		replace_address "$shorter"
+	fi
+
+	ddev wp core update-db --skip-plugins --skip-themes
+
+	adopt_user "$source"
+
+	# Apply the site settings that were given explicitly. The settings mkwp
+	# gives a new site by default, such as a title made from NAME, are not.
+	if [[ $title_given ]]; then
+		ddev wp option update blogname "$title" --skip-plugins --skip-themes
+	fi
+	if [[ $language_given ]]; then
+		ddev wp site switch-language "$language" --skip-plugins --skip-themes
+	fi
+
+	# Flush the rewrite rules with plugins and themes, since they add rules
+	ddev wp rewrite flush
+	ddev wp cache flush --skip-plugins --skip-themes
+
+}
+
+# Usage: replace_address <old>
+# Replaces the address <old> with the site's address throughout the database,
+# both as plain text and JSON-escaped, as in https:\/\/example.com, unless it
+# already is the site's address.
+replace_address() {
+
+	[[ $1 != "$url" ]] || return 0
+
+	ddev wp search-replace "$1" "$url" --all-tables --precise --report-changed-only --skip-plugins --skip-themes
+	ddev wp search-replace "${1//\//\\/}" "${url//\//\\/}" --all-tables --precise --report-changed-only --skip-plugins --skip-themes
+
+}
+
+# Usage: adopt_user <source>
+# Makes mkwp's user an administrator with the given email address and
+# password, in the database just imported from <source>, which only names it
+# in messages. The user is updated if the database has it, and created
+# otherwise. Stops if the email address belongs to another user, since two
+# users can't have the same email address.
+adopt_user() {
+
+	local id owner
+	id=$(wp_value user list --login="$user" --field=ID)
+	owner=$(wp_value user list --search="$email" --field=ID)
+
+	if [[ $owner && $owner != "$id" ]]; then
+		owner=$(wp_value user get "$owner" --field=user_login)
+		die "The email address $email belongs to the user $owner in the database from $1, so it can't be given to $user. Give $user another email address, or use $owner." 202
+	fi
+
+	if [[ $id ]]; then
+		ddev wp user update "$id" --user_email="$email" --user_pass="$password" --role=administrator --skip-email --skip-plugins --skip-themes
+	else
+		ddev wp user create "$user" "$email" --role=administrator --user_pass="$password" --skip-plugins --skip-themes
+	fi
+
+}
+
+# Usage: wp_value <arg>...
+# Echoes what `ddev wp <arg>...` prints, run without plugins and themes, as a
+# value to use. Under PHP 8.5, WP-CLI prints deprecation notices ahead of what
+# it was asked for, each after an empty line, so empty lines and such notices
+# are left out.
+wp_value() {
+	ddev wp "$@" --skip-plugins --skip-themes 2> /dev/null | sed -e '/^Deprecated: .* on line [0-9]*$/d' -e '/^$/d'
+}
+
 # Usage: destroy_site
 # Deletes the DDEV project named $name, including its database, and removes
 # the site directory from the file system. Asks for confirmation first.
@@ -1100,9 +1255,17 @@ main() {
 	# shellcheck disable=SC2034
 	mu_plugins_sources=() mu_plugins_kinds=()
 
-	# The name of the theme to activate, and of the plugins to activate.
+	# The name of the theme to activate, and of the plugins to activate. The
+	# last theme listed is activated if none is chosen and there is no
+	# database.
 	theme=
+	last_theme=
 	plugins_to_activate=()
+
+	# The database dump to import, if any, and the database server to import
+	# it into, if one is given. See read_blueprint_database.
+	database_dump=
+	database_server=
 
 	# Parse the argument list from the command line
 	handle_arguments "$@"
@@ -1122,6 +1285,11 @@ main() {
 
 	# Parse config files
 	handle_config_files
+
+	# Note the site settings that were given, rather than filled in below,
+	# since only those are applied over a database.
+	title_given=$title
+	language_given=$language
 
 	# Tidy up, fill in default values and add some extra variables.
 	title=${title:=${name^}}
@@ -1205,7 +1373,7 @@ main() {
 	# Configure the project before the first start, so that all customizations
 	# below — PHP settings, host commands, cron and the optional Redis service
 	# — are baked into the containers in a single start with no restart needed.
-	ddev config --project-name="$name" --project-type=wordpress --disable-settings-management --php-version="$php" --performance-mode=mutagen
+	ddev config --project-name="$name" --project-type=wordpress --disable-settings-management --php-version="$php" --performance-mode=mutagen ${database_server:+"--database=$database_server"}
 
 	# Create local php.ini with infinite timeout. Don't use on production!
 	mkdir -p .ddev/php
@@ -1300,11 +1468,19 @@ main() {
 	fi
 
 	# If no theme is specified, default to WordPress's current default theme,
-	# whose slug is declared among core's default constants.
-	if [[ -z "$theme" ]]; then
-		theme=$(sed -n "s/.*'WP_DEFAULT_THEME', '\([^']*\)'.*/\1/p" wp-includes/default-constants.php)
-		[[ "$theme" ]] || die "Couldn't determine the default theme." 25
-		add_item themes slug "$theme"
+	# whose slug is declared among core's default constants. Without a
+	# database, a theme is always activated: the theme chosen with -T or
+	# "activate": true, else the last one listed, else the default theme. With
+	# a database, only a chosen theme is activated, and the database's active
+	# theme is otherwise kept.
+	if (( ${#themes_sources[@]} == 0 )); then
+		default_theme=$(sed -n "s/.*'WP_DEFAULT_THEME', '\([^']*\)'.*/\1/p" wp-includes/default-constants.php)
+		[[ "$default_theme" ]] || die "Couldn't determine the default theme." 25
+		add_item themes slug "$default_theme"
+		last_theme=$default_theme
+	fi
+	if [[ -z $database_dump ]]; then
+		theme=${theme:-$last_theme}
 	fi
 
 	# Create home for "must use" plugins
@@ -1316,8 +1492,17 @@ main() {
 	install_items plugins
 	install_items mu_plugins
 
-	# Activate the theme, and the plugins marked for activation
-	ddev wp theme activate "$theme"
+	# Import the database, if there is one, and make it the site's own
+	if [[ $database_dump ]]; then
+		ddev import-db --file="$database_dump"
+		adopt_database "$database_dump"
+	fi
+
+	# Activate the theme, if there is one to activate, and the plugins marked
+	# for activation
+	if [[ $theme ]]; then
+		ddev wp theme activate "$theme"
+	fi
 	if (( ${#plugins_to_activate[@]} )); then
 		ddev wp plugin activate "${plugins_to_activate[@]}"
 	fi
