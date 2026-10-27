@@ -20,7 +20,7 @@ test_accepts_a_version_on_a_wordpress_org_slug() {
 test_rejects_a_version_on_a_source_that_is_not_a_wordpress_org_slug() {
 	write_blueprint '{"plugins": ["hello-dolly", {"source": "https://github.com/example/plugin.git", "version": "1.2.0"}]}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 41 "Invalid blueprint $blueprint: .plugins[1] has a version, but only a slug on WordPress.org can have one"
+	assert_rejected 44 "Invalid blueprint $blueprint: .plugins[1] has a version, but only a slug on WordPress.org can have one"
 	assert_nothing_created
 }
 
@@ -33,7 +33,7 @@ test_accepts_a_ref_on_a_git_source() {
 test_rejects_a_ref_on_a_source_that_is_not_a_git_repository() {
 	write_blueprint '{"themes": [{"source": "twentytwentyfive", "ref": "v1.0.0"}]}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 42 "Invalid blueprint $blueprint: .themes[0] has a ref, but only a Git repository can have one"
+	assert_rejected 45 "Invalid blueprint $blueprint: .themes[0] has a ref, but only a Git repository can have one"
 	assert_nothing_created
 }
 
@@ -43,7 +43,7 @@ test_rejects_a_ref_on_a_local_path_that_ends_with_git() {
 	write_blueprint '{"plugins": [{"source": "./plugin.git", "ref": "main"}]}'
 	mkdir "$sandbox/blueprint/plugin.git"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 42 "Invalid blueprint $blueprint: .plugins[0] has a ref, but only a Git repository can have one"
+	assert_rejected 45 "Invalid blueprint $blueprint: .plugins[0] has a ref, but only a Git repository can have one"
 	assert_nothing_created
 }
 
