@@ -6,9 +6,18 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- New `-B` / `--blueprint` option that builds a site from a blueprint: a JSON file that describes the site's title, language, PHP and WordPress versions and Redis setting, and the themes, plugins and mu-plugins to install. A theme or plugin comes from WordPress.org, a Git repository (including a private one over SSH), a URL or a zip file next to the blueprint, and is activated if it's marked with `"activate": true`. Options on the command line take precedence over the blueprint, and the blueprint over the configuration files. mkwp checks the whole blueprint, and every file it refers to, before it touches Docker and DDEV, and stops with an exit status of its own for each kind of error. A blueprint needs `jq`.
+- `blueprint.schema.json`, a JSON Schema for blueprints, lets an editor check and complete a blueprint.
+
 ### Changed
 
 - Invalid options are now reported before Docker and DDEV are checked, so a mistyped name, email address, password or other option is reported even when Docker isn't running.
+
+### Fixed
+
+- A relative path to a zip file given with `-T`, `-P` or `-M` is now relative to the current directory. It was looked for in the site's themes, plugins or mu-plugins directory, where it was never found.
 
 ## [1.9.0] – 2026-10-21
 

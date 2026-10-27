@@ -29,11 +29,15 @@ help() {
 	Makes a local WordPress site with the domain \e[1mname.ddev.site\e[0m where
 	\e[1mname\e[0m is the domain name provided as the argument [NAME].
 
+	The site can be described by a blueprint, a JSON file given with
+	\e[1m-B\e[0m or \e[1m--blueprint\e[0m. See \e[1mBLUEPRINT\e[0m below.
+
 	If a flag is not specified on the command line, the corresponding
-	option is in the first place set to a value read from the configuration
-	file specified with \e[1m-c\e[0m or \e[1m--config\e[0m, in the second place to a value read
-	from the configuration file \e[1m~/.mkwp\e[0m, and in the third place to a
-	default value.
+	option is in the first place set to the value in the blueprint, if
+	there is one and it has a value for the option, in the second place
+	to a value read from the configuration file specified with \e[1m-c\e[0m or
+	\e[1m--config\e[0m, in the third place to a value read from the configuration
+	file \e[1m~/.mkwp\e[0m, and in the fourth place to a default value.
 
 	If the configuration file \e[1m~/.mkwp\e[0m is missing, an empty one will be
 	created.
@@ -133,6 +137,11 @@ help() {
 		installed and activated, and its object-cache.php drop-in is
 		enabled. In a configuration file, use \e[1mredis = true\e[0m.
 
+	\e[1m-B <file>\e[0m
+	\e[1m--blueprint=<file>\e[0m
+		Builds the site that the blueprint <file> describes. See
+		\e[1mBLUEPRINT\e[0m below.
+
 	\e[1m--destroy\e[0m
 		Destroys the site [NAME]: deletes the DDEV project, including
 		its database, and removes the site directory from the file
@@ -148,9 +157,104 @@ help() {
 	\e[1m--help\e[0m
 		Display this help and exit.
 
+\e[1mBLUEPRINT\e[0m
+	A blueprint is a JSON file that describes a site. Keep it, and the
+	files it refers to, in a directory of their own, which can be a Git
+	repository and cloned anywhere. mkwp checks the whole blueprint, and
+	every file it refers to, before it makes anything. Example:
+
+		{
+		  \"\$schema\": \"https://raw.githubusercontent.com/Kntnt/mkwp/main/blueprint.schema.json\",
+		  \"note\": \"Our starting point for client sites\",
+		  \"site\": { \"title\": \"Client Site\", \"language\": \"sv_SE\", \"php\": \"8.4\", \"redis\": true },
+		  \"themes\": [
+		    \"twentytwentyfive\",
+		    { \"source\": \"./themes/client-child.zip\", \"activate\": true }
+		  ],
+		  \"plugins\": [
+		    { \"source\": \"query-monitor\", \"activate\": true },
+		    { \"source\": \"git@github.com:example/private-plugin.git\", \"activate\": true },
+		    { \"source\": \"./plugins/commercial-plugin.zip\", \"note\": \"Licensed to us\" }
+		  ],
+		  \"mu_plugins\": [
+		    \"https://raw.githubusercontent.com/Kntnt/kntnt-adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php\"
+		  ]
+		}
+
+	A blueprint is an object with these keys, all of them optional:
+
+	\e[1m\$schema\e[0m
+		The JSON Schema of the blueprint, which lets an editor check
+		and complete it. mkwp ignores it.
+
+	\e[1mnote\e[0m
+		A note of your own, since JSON has no comments. It may also be
+		given in each item of \e[1mthemes\e[0m, \e[1mplugins\e[0m and \e[1mmu_plugins\e[0m. mkwp
+		ignores it.
+
+	\e[1msite\e[0m
+		An object with the settings of the site: \e[1mtitle\e[0m, \e[1mlanguage\e[0m, \e[1mphp\e[0m
+		and \e[1mwp\e[0m, which are strings, and \e[1mredis\e[0m, which is true or false.
+		Each is checked like the option with the same name, and is
+		replaced by the option when it's given on the command line.
+
+	\e[1mthemes\e[0m
+	\e[1mplugins\e[0m
+		Arrays of the themes and plugins to install. An item is a
+		source, as described below, or an object with the source in
+		\e[1msource\e[0m, and with \e[1mactivate\e[0m (true or false) and \e[1mnote\e[0m. Each item
+		with \"activate\": true is activated, and at most one theme may
+		have it. If no theme has it, the last theme is activated.
+		Themes and plugins given with \e[1m-T\e[0m and \e[1m-P\e[0m are installed after
+		the blueprint's, and the last theme given with \e[1m-T\e[0m is activated
+		instead of the blueprint's.
+
+	\e[1mmu_plugins\e[0m
+		An array of the mu-plugins to install. An item is the URL of a
+		PHP file, or an object with the URL in \e[1msource\e[0m, and with \e[1mnote\e[0m.
+
+	\e[1mfiles\e[0m
+		Not supported yet. A blueprint with this key is rejected.
+
+	\e[1mdatabase\e[0m
+		Not supported yet. A blueprint with this key is rejected.
+
+	\e[1mwp_cli\e[0m
+		Not supported yet. A blueprint with this key is rejected.
+
+	The source of a theme or plugin is one of these, recognized in this
+	order:
+
+		A local path, which starts with ./, ../, / or ~/, to a zip
+		file. A relative path is relative to the blueprint's directory.
+		The theme or plugin is named after the directory in the zip
+		file, so the file's own name doesn't matter.
+
+		A Git repository, whose URL ends with .git. Any URL that Git
+		accepts works, including SSH, so a private repository is
+		reached with your own SSH setup. The latest tag is checked out,
+		or the default branch if there is no tag.
+
+		A URL, which starts with http:// or https://, to a zip file.
+
+		A slug on WordPress.org, which is anything else.
+
+	A site is built in this order:
+
+		- DDEV is configured, with the cron add-on and, if Redis is
+		  used, the Redis add-on, and started.
+		- WordPress is downloaded and installed.
+		- The themes, plugins and mu-plugins are installed.
+		- The theme to activate, and the plugins with
+		  \"activate\": true, are activated.
+		- Redis is enabled as object cache, if it is used.
+		- The site is opened in the browser.
+
 \e[1mDEPENDENCY\e[0m
 	This command requires that a Docker provider is installed and running
-	on your system and that DDEV is properly installed and in your path." | less -R
+	on your system and that DDEV is properly installed and in your path.
+	A blueprint also requires jq, and a blueprint with a local zip file
+	requires unzip." | less -R
 
 }
 
