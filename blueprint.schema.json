@@ -70,8 +70,31 @@
 			}
 		},
 		"files": {
-			"description": "Not supported by this version of mkwp.",
-			"not": {}
+			"description": "The files and directories to copy into wp-content, after the themes, plugins and mu-plugins are installed.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"source",
+					"target"
+				],
+				"properties": {
+					"source": {
+						"description": "A local file or directory. A relative path is relative to the blueprint's directory, and ~/ is the home directory.",
+						"type": "string",
+						"minLength": 1
+					},
+					"target": {
+						"description": "The directory to copy into, relative to wp-content, such as uploads/2024/01. It's created if it's missing. A file keeps its name, and a directory's contents are merged into it. The target must not be absolute or start with ~, and its .. parts must not lead out of wp-content.",
+						"type": "string",
+						"pattern": "^[^/~]"
+					},
+					"note": {
+						"$ref": "#/$defs/note"
+					}
+				}
+			}
 		},
 		"database": {
 			"description": "Not supported by this version of mkwp.",
