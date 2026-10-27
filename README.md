@@ -222,7 +222,14 @@ BLUEPRINT
 		Not supported yet. A blueprint with this key is rejected.
 
 	wp_cli
-		Not supported yet. A blueprint with this key is rejected.
+		An array of WP-CLI commands, which are run in the given order at
+		the end of the build. A command is an array of the arguments to
+		wp, without wp itself, such as
+		["option", "update", "blogdescription", "Just another site"].
+		Each argument reaches WP-CLI exactly as written, since no shell
+		is involved, so nothing needs quoting. A command gets no input,
+		so give --yes to a command that asks for confirmation. If a
+		command fails, mkwp stops without opening the site.
 
 	The source of a theme or plugin is one of these, recognized in this
 	order:
@@ -250,6 +257,7 @@ BLUEPRINT
 		- The theme to activate, and the plugins with
 		  "activate": true, are activated.
 		- Redis is enabled as object cache, if it is used.
+		- The WP-CLI commands in wp_cli are run, in order.
 		- The site is opened in the browser.
 
 DEPENDENCY

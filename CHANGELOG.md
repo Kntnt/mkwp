@@ -10,6 +10,7 @@ uses [Semantic Versioning](https://semver.org/).
 
 - New `-B` / `--blueprint` option that builds a site from a blueprint: a JSON file that describes the site's title, language, PHP and WordPress versions and Redis setting, and the themes, plugins and mu-plugins to install. A theme or plugin comes from WordPress.org, a Git repository (including a private one over SSH), a URL or a zip file next to the blueprint, and is activated if it's marked with `"activate": true`. Options on the command line take precedence over the blueprint, and the blueprint over the configuration files. mkwp checks the whole blueprint, and every file it refers to, before it touches Docker and DDEV, and stops with an exit status of its own for each kind of error. A blueprint needs `jq`.
 - `blueprint.schema.json`, a JSON Schema for blueprints, lets an editor check and complete a blueprint.
+- A blueprint's `wp_cli` key lists WP-CLI commands that mkwp runs, in order, at the end of the build: after Redis is enabled and before the site is opened. Each command is an array of the arguments to `wp`, which reach WP-CLI exactly as written, with no shell in between. If a command fails, mkwp stops with a message that names the command and its exit status, and doesn't open the site.
 
 ### Changed
 
