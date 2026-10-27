@@ -1762,9 +1762,19 @@ main() {
 		echo "wp=$wp"
 		echo "redis=$redis"
 		echo "blueprint=$blueprint"
+		echo "no_blueprint=$no_blueprint"
 		echo "config=$config"
 		echo "wp_path=$wp_path"
 		echo "url=$url"
+		echo "theme_index=$theme_index"
+		echo "last_theme_index=$last_theme_index"
+		echo "database_kind=$database_kind"
+		echo "database_file=$database_file"
+		echo "database_server=$database_server"
+		declare -p themes_sources themes_kinds themes_pins \
+			plugins_sources plugins_kinds plugins_pins plugins_to_activate \
+			mu_plugins_sources mu_plugins_kinds mu_plugins_pins \
+			copy_sources copy_targets wp_cli_args wp_cli_lengths | sed 's/^declare -a //'
 	fi
 
 	# Validate options. Everything that doesn't need DDEV is checked before
