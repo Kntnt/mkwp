@@ -247,12 +247,14 @@ BLUEPRINT
 		source, and with version, ref, activate (true or false) and
 		note. version is the version to install, and only a slug on
 		WordPress.org may have it. ref is the tag, branch or commit to
-		check out, and only a Git repository may have it. Each item
-		with "activate": true is activated, and at most one theme may
-		have it. If no theme has it, the last theme is activated,
-		unless there is a database. Themes and plugins given with -T
-		and -P are installed after the blueprint's, and the last theme
-		given with -T is activated instead of the blueprint's.
+		check out, and only a Git repository may have it. Neither may
+		hold white space or start with a hyphen, which Git would take
+		for an option. Each item with "activate": true is activated,
+		and at most one theme may have it. If no theme has it, the
+		last theme is activated, unless there is a database. Themes
+		and plugins given with -T and -P are installed after the
+		blueprint's, and the last theme given with -T is activated
+		instead of the blueprint's.
 
 	mu_plugins
 		An array of the mu-plugins to install. An item is a source, as
@@ -312,8 +314,11 @@ BLUEPRINT
 		and the timezone of the language, is not applied. The user
 		is made an administrator with the email address and
 		password given, and is created if the database doesn't have
-		it. A dump or a snapshot can hold secrets, such as licence
-		keys and API credentials, which mkwp doesn't remove.
+		it. If the email address belongs to another user in the
+		database, mkwp stops, since WordPress can't give two users
+		the same email address. A dump or a snapshot can hold
+		secrets, such as licence keys and API credentials, which
+		mkwp doesn't remove.
 
 	wp_cli
 		An array of WP-CLI commands, which are run in the given order at
@@ -345,7 +350,10 @@ BLUEPRINT
 		which is named after the directory in it, as a local one is.
 
 		A slug on WordPress.org, which is anything else. The version
-		in version is installed, or else the latest one.
+		in version is installed, or else the latest one. A slug has
+		only lower-case letters, digits, - and _, so a local path
+		written without ./ in front is reported before anything is
+		made.
 
 	The source of an mu-plugin is a PHP file, given by a local path,
 	which starts with ./, ../, / or ~/ and is relative to the
