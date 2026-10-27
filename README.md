@@ -34,26 +34,19 @@ DESCRIPTION
 	The site can be described by a blueprint, a JSON file given with
 	-B or --blueprint. See BLUEPRINT below.
 
-	If a flag is not specified on the command line, the corresponding
-	option is in the first place set to the value in the blueprint, if
-	there is one and it has a value for the option, in the second place
-	to a value read from the configuration file specified with -c or
-	--config, in the third place to a value read from the configuration
-	file ~/.mkwp, and in the fourth place to a default value.
+	Your personal settings, and the blueprint to use when none is given
+	with -B, can be kept in a configuration file. See CONFIGURATION
+	below.
 
-	If the configuration file ~/.mkwp is missing, an empty one will be
-	created.
-
-	A configuration file should be formatted so that each line starting
-	with the name of a long format flag, excluding leading double dashes
-	(e.g. email instead of --email), followed by an equal sign, where the
-	corresponding flag has not been specified on the command line, the flag
-	is specified with the option set to the value following the equal sign.
-	White space may be used around the equal sign.
-	Examples:
-
-		title = WordPress Test Site
-		php=8.5
+	An option given on the command line always takes precedence. If a
+	site setting (title, language, PHP or WordPress version, or Redis)
+	is not given there, it is in the first place set to the value in the
+	blueprint, if there is one and it has the setting, and in the second
+	place to a default value. If a personal setting (email, user,
+	password or directory) is not given there, it is in the first place
+	set to the value in the configuration file specified with -c or
+	--config, in the second place to the value in the configuration
+	file ~/.mkwp, and in the third place to a default value.
 
 OPTIONS
 	-t <title>
@@ -137,12 +130,18 @@ OPTIONS
 		Adds a Redis service to the site and enables it as WordPress
 		object cache backend: the Redis Object Cache plugin is
 		installed and activated, and its object-cache.php drop-in is
-		enabled. In a configuration file, use redis = true.
+		enabled.
 
 	-B <file>
 	--blueprint=<file>
-		Builds the site that the blueprint <file> describes. See
-		BLUEPRINT below.
+		Builds the site that the blueprint <file> describes, instead
+		of the one a configuration file names, if any. See BLUEPRINT
+		below.
+
+	--no-blueprint
+		Builds the site without a blueprint, even if a configuration
+		file names one. Can't be given together with -B or
+		--blueprint.
 
 	--destroy
 		Destroys the site [NAME]: deletes the DDEV project, including
@@ -152,12 +151,52 @@ OPTIONS
 
 	-c <file>
 	--config=<file>
-		Reads configuration from a file with the path <file>.
-		See description above for details.
+		Reads personal settings, and the blueprint to use, from the
+		configuration file <file>, or from standard input if <file>
+		is -. See CONFIGURATION below.
 
 	-h
 	--help
 		Display this help and exit.
+
+CONFIGURATION
+	mkwp reads the configuration file given with -c or --config, if
+	any, and the configuration file ~/.mkwp. If ~/.mkwp is missing, an
+	empty one is created.
+
+	A configuration file holds your personal settings, and may name a
+	blueprint. Each line is a key, an equal sign and a value, with
+	optional white space around the equal sign. Blank lines and lines
+	starting with # are ignored. Any other line stops mkwp. Example:
+
+		# Personal settings
+		email = jane@example.com
+		user = jane
+		directory = /Users/jane/Sites
+		blueprint = ~/blueprints/default.json
+
+	The keys are:
+
+	email
+	user
+	password
+	directory
+		The same as the options with the same names.
+
+	blueprint
+		The blueprint to build the site from when none is given with
+		-B or --blueprint. A path starting with ~/ is in your home
+		directory, and a relative path is relative to the directory of
+		the configuration file, or to the current directory if the
+		configuration is read from standard input. A blueprint named
+		in the file given with -c is used instead of one named in
+		~/.mkwp. Give --no-blueprint to build a site without it.
+
+	Before mkwp 2.0.0, a configuration file could also hold the site
+	settings name, dirname, title, language, themes, plugins,
+	mu-plugins, php, wp and redis. Now they stop mkwp. Give name
+	and dirname on the command line, and the others in a blueprint
+	or as options.
 
 BLUEPRINT
 	A blueprint is a JSON file that describes a site. Keep it, and the
@@ -171,14 +210,15 @@ BLUEPRINT
 		  "site": { "title": "Client Site", "language": "sv_SE", "php": "8.4", "redis": true },
 		  "themes": [
 		    "twentytwentyfive",
-		    { "source": "./themes/client-child.zip", "activate": true }
+		    { "source": "./themes/client-child", "activate": true }
 		  ],
 		  "plugins": [
-		    { "source": "query-monitor", "activate": true },
-		    { "source": "git@github.com:example/private-plugin.git", "activate": true },
+		    { "source": "query-monitor", "version": "3.19.0", "activate": true },
+		    { "source": "git@github.com:example/private-plugin.git", "ref": "v2.1.0", "activate": true },
 		    { "source": "./plugins/commercial-plugin.zip", "note": "Licensed to us" }
 		  ],
 		  "mu_plugins": [
+		    "./mu-plugins/client-tweaks.php",
 		    "https://raw.githubusercontent.com/Kntnt/kntnt-adminbar-sanitizer/master/kntnt-adminbar-sanitizer.php"
 		  ]
 		}
@@ -191,8 +231,8 @@ BLUEPRINT
 
 	note
 		A note of your own, since JSON has no comments. It may also be
-		given in each item of themes, plugins and mu_plugins. mkwp
-		ignores it.
+		given in each item of themes, plugins, mu_plugins and
+		files. mkwp ignores it.
 
 	site
 		An object with the settings of the site: title, language, php
@@ -204,7 +244,10 @@ BLUEPRINT
 	plugins
 		Arrays of the themes and plugins to install. An item is a
 		source, as described below, or an object with the source in
-		source, and with activate (true or false) and note. Each item
+		source, and with version, ref, activate (true or false) and
+		note. version is the version to install, and only a slug on
+		WordPress.org may have it. ref is the tag, branch or commit to
+		check out, and only a Git repository may have it. Each item
 		with "activate": true is activated, and at most one theme may
 		have it. If no theme has it, the last theme is activated,
 		unless there is a database. Themes and plugins given with -T
@@ -212,11 +255,26 @@ BLUEPRINT
 		given with -T is activated instead of the blueprint's.
 
 	mu_plugins
-		An array of the mu-plugins to install. An item is the URL of a
-		PHP file, or an object with the URL in source, and with note.
+		An array of the mu-plugins to install. An item is a source, as
+		described below, or an object with the source in source, and
+		with note.
 
 	files
-		Not supported yet. A blueprint with this key is rejected.
+		An array of the files and directories to copy into wp-content,
+		such as the media that a database refers to. An item is an
+		object with a local file or directory in source, the directory
+		to copy it into in target, and note. A relative source is
+		relative to the blueprint's directory. The target is relative
+		to wp-content, as in "uploads/2024/01", and is created if it's
+		missing. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. A file keeps its name,
+		and replaces a file with the same name. A directory's contents
+		are merged with what the target already has. Example:
+
+			"files": [
+			  { "source": "./media", "target": "uploads" },
+			  { "source": "./fonts/brand.woff2", "target": "fonts" }
+			]
 
 	database
 		An object with a database to start the site from: a dump of
@@ -242,24 +300,40 @@ BLUEPRINT
 		credentials, which mkwp doesn't remove.
 
 	wp_cli
-		Not supported yet. A blueprint with this key is rejected.
+		An array of WP-CLI commands, which are run in the given order at
+		the end of the build. A command is an array of the arguments to
+		wp, without wp itself, such as
+		["option", "update", "blogdescription", "Just another site"].
+		Each argument reaches WP-CLI exactly as written, since no shell
+		is involved, so nothing needs quoting. A command gets no input,
+		so give --yes to a command that asks for confirmation. If a
+		command fails, mkwp stops without opening the site.
 
 	The source of a theme or plugin is one of these, recognized in this
 	order:
 
-		A local path, which starts with ./, ../, / or ~/, to a zip
-		file. A relative path is relative to the blueprint's directory.
-		The theme or plugin is named after the directory in the zip
-		file, so the file's own name doesn't matter.
+		A local path, which starts with ./, ../, / or ~/, to a
+		directory or a zip file. A relative path is relative to the
+		blueprint's directory. A directory is copied into the site
+		under its own name. A zip file is installed, and the theme or
+		plugin is named after the directory in the zip file, so the
+		file's own name doesn't matter.
 
 		A Git repository, whose URL ends with .git. Any URL that Git
 		accepts works, including SSH, so a private repository is
-		reached with your own SSH setup. The latest tag is checked out,
-		or the default branch if there is no tag.
+		reached with your own SSH setup. The tag, branch or commit in
+		ref is checked out, or else the latest tag, or the default
+		branch if there is no tag.
 
 		A URL, which starts with http:// or https://, to a zip file.
 
-		A slug on WordPress.org, which is anything else.
+		A slug on WordPress.org, which is anything else. The version
+		in version is installed, or else the latest one.
+
+	The source of an mu-plugin is a PHP file, given by a local path,
+	which starts with ./, ../, / or ~/ and is relative to the
+	blueprint's directory if it's relative, or by a URL, which starts
+	with http:// or https://.
 
 	A site is built in this order:
 
@@ -267,6 +341,7 @@ BLUEPRINT
 		  used, the Redis add-on, and started.
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
+		- The files are copied into wp-content.
 		- The dump is imported, if there is one. The old address is
 		  replaced by the site's, also where it's JSON-escaped, the
 		  database is upgraded, the user is made an administrator,
@@ -275,6 +350,7 @@ BLUEPRINT
 		- The theme to activate, and the plugins with
 		  "activate": true, are activated.
 		- Redis is enabled as object cache, if it is used.
+		- The WP-CLI commands in wp_cli are run, in order.
 		- The site is opened in the browser.
 
 DEPENDENCY
@@ -288,7 +364,9 @@ DEPENDENCY
 
 A blueprint is a JSON file that describes a site, and `mkwp --blueprint=<file> NAME` builds that site. The format, the rules for sources and the order in which a site is built are described under BLUEPRINT in the usage above, which also has an example.
 
-A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
+A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files, directories, PHP files and other files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
+
+To build every site from a blueprint of yours unless you say otherwise, name it in `~/.mkwp`, as in `blueprint = ~/blueprints/default.json`. A blueprint named in a configuration file given with `-c`, such as one for a client, is used instead, and a blueprint given with `--blueprint` is used before either. `--no-blueprint` builds a plain site. The configuration files hold only your personal settings and that blueprint; everything that describes the site belongs in the blueprint. See CONFIGURATION in the usage above.
 
 A blueprint's `database` starts the site from a dump of another site, with all the settings and content that site has. Only a dump whose tables have the prefix `wp_` can be used.
 

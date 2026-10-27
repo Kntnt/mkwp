@@ -237,10 +237,10 @@ test_stops_at_a_dump_with_another_table_prefix() {
 	gunzip -c "$fixtures/a.sql.gz" | sed 's/`wp_/`xyz_/g' | gzip > "$fixtures/xyz.sql.gz"
 	echo '{"database": {"dump": "./xyz.sql.gz"}}' > "$fixtures/xyz.json"
 	try_site xyz -B "$fixtures/xyz.json"
-	assert_stopped_with 201 "The database from $fixtures/xyz.sql.gz is not a WordPress site with the table prefix wp_, which is the only prefix mkwp supports."
+	assert_stopped_with 47 "The database from $fixtures/xyz.sql.gz is not a WordPress site with the table prefix wp_, which is the only prefix mkwp supports."
 }
 
 test_stops_when_the_email_address_belongs_to_another_user_in_the_database() {
 	try_site taken -B "$fixtures/defaults.json" -u "$new_user"
-	assert_stopped_with 202 "The email address $site_email belongs to the user $site_user in the database from $fixtures/a.sql.gz, so it can't be given to $new_user. Give $new_user another email address, or use $site_user."
+	assert_stopped_with 48 "The email address $site_email belongs to the user $site_user in the database from $fixtures/a.sql.gz, so it can't be given to $new_user. Give $new_user another email address, or use $site_user."
 }

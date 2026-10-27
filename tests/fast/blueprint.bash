@@ -135,10 +135,10 @@ test_rejects_an_empty_source() {
 	assert_nothing_created
 }
 
-test_rejects_an_mu_plugin_that_is_not_the_url_of_a_php_file() {
+test_rejects_an_mu_plugin_that_is_not_a_php_file() {
 	write_blueprint '{"mu_plugins": ["https://example.com/mu-plugin.zip"]}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 34 "Invalid blueprint $blueprint: \"https://example.com/mu-plugin.zip\" in .mu_plugins[0] is not the URL of a PHP file"
+	assert_rejected 34 "Invalid blueprint $blueprint: \"https://example.com/mu-plugin.zip\" in .mu_plugins[0] is neither a local PHP file nor the URL of one"
 	assert_nothing_created
 }
 
@@ -171,14 +171,6 @@ test_does_not_look_for_a_relative_source_in_the_current_directory() {
 	write_zip "$mkwp_dir/plugin.zip" plugin
 	run_mkwp -m test@example.com -B "$blueprint" site
 	assert_rejected 35 "Invalid blueprint $blueprint: \"./plugin.zip\" in .plugins[0] doesn't exist"
-	assert_nothing_created
-}
-
-test_rejects_a_local_source_that_is_a_directory() {
-	write_blueprint '{"themes": ["./theme"]}'
-	mkdir "$sandbox/blueprint/theme"
-	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 35 "Invalid blueprint $blueprint: \"./theme\" in .themes[0] is a directory, not a zip file"
 	assert_nothing_created
 }
 
@@ -224,11 +216,13 @@ test_lets_an_option_take_precedence_over_the_blueprint() {
 	assert_nothing_created
 }
 
-test_lets_the_blueprint_take_precedence_over_a_configuration_file() {
+# A site setting belongs in the blueprint, and not in a configuration file,
+# even when there is a blueprint.
+test_rejects_a_site_setting_in_a_configuration_file_with_a_blueprint() {
 	write_blueprint '{"site": {"php": "8.4"}}'
-	echo 'php = 9.1' > "$sandbox/config"
+	echo 'php = 8.3' > "$sandbox/config"
 	run_mkwp -m test@example.com -c "$sandbox/config" -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
+	assert_rejected 41 "Invalid configuration in $sandbox/config: php on line 1 belongs in a blueprint now, as .site.php"
 	assert_nothing_created
 }
 

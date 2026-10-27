@@ -54,7 +54,7 @@ test_rejects_a_server_of_another_type() {
 	write_blueprint '{"database": {"dump": "./site.sql", "server": "postgres:16"}}'
 	echo 'SELECT 1;' > "$sandbox/blueprint/site.sql"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 200 "Invalid blueprint $blueprint: \"postgres:16\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>"
+	assert_rejected 46 "Invalid blueprint $blueprint: \"postgres:16\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>"
 	assert_nothing_created
 }
 
@@ -62,7 +62,7 @@ test_rejects_a_server_without_a_version() {
 	write_blueprint '{"database": {"dump": "./site.sql", "server": "mariadb"}}'
 	echo 'SELECT 1;' > "$sandbox/blueprint/site.sql"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 200 "Invalid blueprint $blueprint: \"mariadb\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>"
+	assert_rejected 46 "Invalid blueprint $blueprint: \"mariadb\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>"
 	assert_nothing_created
 }
 
