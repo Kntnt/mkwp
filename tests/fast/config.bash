@@ -9,6 +9,29 @@ write_home_config() {
 	printf '%s\n' "$@" > "$mkwp_home/.mkwp"
 }
 
+test_stops_when_home_config_can_not_be_created() {
+	chmod a-w "$mkwp_home"
+	run_mkwp -m test@example.com site
+	chmod u+w "$mkwp_home"
+	assert_equal 10 "$status"
+	assert_equal "Couldn't create ~/.mkwp" "$(tail -n 1 <<< "$output")"
+	assert_nothing_created
+}
+
+test_stops_when_home_config_can_not_be_read() {
+	write_home_config 'email = test@example.com'
+	chmod a-r "$mkwp_home/.mkwp"
+	run_mkwp site
+	assert_rejected 10 "Couldn't read ~/.mkwp"
+	assert_nothing_created
+}
+
+test_stops_when_the_c_file_can_not_be_read() {
+	run_mkwp -m test@example.com -c "$sandbox/missing" site
+	assert_rejected 10 'Invalid path to config file'
+	assert_nothing_created
+}
+
 test_rejects_a_site_setting_in_home_config() {
 	write_home_config 'title = My Site'
 	run_mkwp -m test@example.com site

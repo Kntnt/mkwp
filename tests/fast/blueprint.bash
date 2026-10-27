@@ -17,6 +17,25 @@ test_needs_no_jq_without_a_blueprint() {
 	assert_nothing_created
 }
 
+# jq can lack what the check needs, such as a jq built without regular
+# expressions.
+test_stops_when_jq_can_not_check_the_blueprint() {
+	write_blueprint '{}'
+	cat > "$sandbox/bin/jq" <<- 'EOT'
+	#!/usr/bin/env bash
+	if [[ $1 == -s ]]; then
+		echo 1
+	else
+		echo 'jq: error (at <stdin>:0): jq was compiled without ONIGURUMA regex library.' >&2
+		exit 5
+	fi
+	EOT
+	chmod +x "$sandbox/bin/jq"
+	run_mkwp -m test@example.com -B "$blueprint" site
+	assert_rejected 53 "Couldn't check the blueprint $blueprint: jq: error (at <stdin>:0): jq was compiled without ONIGURUMA regex library."
+	assert_nothing_created
+}
+
 test_rejects_a_blueprint_that_does_not_exist() {
 	run_mkwp -m test@example.com -B "$sandbox/missing.json" site
 	assert_rejected 28 "Couldn't read the blueprint $sandbox/missing.json"
@@ -62,6 +81,13 @@ test_rejects_a_value_of_the_wrong_type() {
 	write_blueprint '{"site": {"php": 8.4}}'
 	run_mkwp -m test@example.com -B "$blueprint" site
 	assert_rejected 31 "Invalid blueprint $blueprint: .site.php must be a string, not a number"
+	assert_nothing_created
+}
+
+test_rejects_a_string_with_a_nul_character() {
+	write_blueprint '{"site": {"title": "Before\u0000after"}}'
+	run_mkwp -m test@example.com -B "$blueprint" site
+	assert_rejected 33 "Invalid blueprint $blueprint: .site.title must not contain a NUL character"
 	assert_nothing_created
 }
 

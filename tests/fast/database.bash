@@ -5,7 +5,7 @@
 test_rejects_a_database_with_neither_a_dump_nor_a_snapshot() {
 	write_blueprint '{"database": {"server": "mariadb:11.4"}}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 32 "Invalid blueprint $blueprint: .database has no \"dump\" or \"snapshot\""
+	assert_rejected 52 "Invalid blueprint $blueprint: .database has no \"dump\" or \"snapshot\""
 	assert_nothing_created
 }
 
@@ -19,7 +19,7 @@ test_rejects_a_database_with_both_a_dump_and_a_snapshot() {
 test_rejects_a_snapshot_without_a_server() {
 	write_blueprint '{"database": {"snapshot": "./site-mariadb_11.8.zst"}}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 32 "Invalid blueprint $blueprint: .database has no \"server\", which is required with \"snapshot\""
+	assert_rejected 51 "Invalid blueprint $blueprint: .database has no \"server\", which is required with \"snapshot\""
 	assert_nothing_created
 }
 

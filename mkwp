@@ -459,9 +459,9 @@ handle_config_files() {
 
 	# Read ~/.mkwp, which is created if it doesn't exist
 	if [[ ! -e ~/.mkwp ]]; then
-		touch ~/.mkwp || die "Couldn't create ~/.mkwp" 12
+		touch ~/.mkwp || die "Couldn't create ~/.mkwp" 10
 	fi
-	[[ -r ~/.mkwp ]] || die "Couldn't read ~/.mkwp" 12
+	[[ -r ~/.mkwp ]] || die "Couldn't read ~/.mkwp" 10
 	# shellcheck disable=SC2088 # The label is meant to show ~
 	read_config_file ~/.mkwp '~/.mkwp' "$HOME"
 
@@ -585,41 +585,45 @@ check_blueprint() {
 	def with_article:
 		if . == "null" then . elif test("^[aeiou]") then "an \(.)" else "a \(.)" end;
 
-	# Usage: check(schema; path)
+	# Usage: check(schema; path; status)
 	# Emits an error for each way the value breaks schema, where path is the
 	# value's path in the blueprint. A schema is an object with the JSON type
 	# or types the value may have, under type, the keys an object may have,
 	# under props, the keys it must have, under required, the pair of keys of
 	# which it must have exactly one, under one_of, the key it must have along
 	# with another, under requires, as {"<other>": "<key>"}, the schema of the
-	# items in an array, under items, and whether an array must have items,
-	# under nonempty. A key whose schema is null is not a known key.
-	def check($schema; $path):
+	# items in an array, under items, whether an array must have items, under
+	# nonempty, and the exit status of every error in the value and inside
+	# it, under status. status is the exit status that a schema around the
+	# value gives, or null. A key whose schema is null is not a known key.
+	def check($schema; $path; $status):
 		type as $type
 		| ([$schema.type] | flatten) as $types
-		| if $schema == null then
-			"30 \($path | location) is not a known key"
+		| ($schema.status // $status) as $status
+		| def error($kind; $message): "\($status // $kind) \($path | location) \($message)";
+		if $schema == null then
+			error(30; "is not a known key")
 		elif $types | any(. == $type) | not then
-			"31 \($path | location) must be \($types | map(with_article) | join(" or ")), not \($type | with_article)"
+			error(31; "must be \($types | map(with_article) | join(" or ")), not \($type | with_article)")
 		elif $type == "string" and (explode | any(. == 0)) then
-			"31 \($path | location) must not contain a NUL character"
+			error(33; "must not contain a NUL character")
 		elif $type == "object" then
 			( ($schema.required // [])[] as $key | select(has($key) | not)
-				| "32 \($path | location) has no \"\($key)\"" ),
+				| error(32; "has no \"\($key)\"") ),
 			( . as $object | $schema.one_of // empty
 				| map("\"\(.)\"") as $keys
 				| (map(select(. as $key | $object | has($key))) | length) as $count
-				| if $count == 0 then "32 \($path | location) has no \($keys | join(" or "))"
-				elif $count > 1 then "49 \($path | location) has both \($keys | join(" and ")), but may only have one of them"
+				| if $count == 0 then error(52; "has no \($keys | join(" or "))")
+				elif $count > 1 then error(49; "has both \($keys | join(" and ")), but may only have one of them")
 				else empty end ),
 			( . as $object | ($schema.requires // {}) | to_entries[]
 				| select((.key as $key | $object | has($key)) and (.value as $key | $object | has($key) | not))
-				| "32 \($path | location) has no \"\(.value)\", which is required with \"\(.key)\"" ),
-			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]) )
+				| error(51; "has no \"\(.value)\", which is required with \"\(.key)\"") ),
+			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]; $status) )
 		elif $type == "array" and $schema.nonempty and length == 0 then
-			"39 \($path | location) must not be empty"
+			error(33; "must not be empty")
 		elif $type == "array" then
-			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index])
+			to_entries[] | .key as $index | .value | check($schema.items; $path + [$index]; $status)
 		else
 			empty
 		end;
@@ -668,8 +672,9 @@ check_blueprint() {
 		server: string
 	}};
 
-	# wp_cli: each command is an array of the arguments to wp.
-	def wp_cli: {type: "array", items: {type: "array", nonempty: true, items: string}};
+	# wp_cli: each command is an array of the arguments to wp. Every error in
+	# it has the same exit status.
+	def wp_cli: {type: "array", status: 39, items: {type: "array", nonempty: true, items: string}};
 
 	# The blueprint itself.
 	def blueprint: {type: "object", props: {
@@ -684,11 +689,11 @@ check_blueprint() {
 		wp_cli: wp_cli
 	}};
 
-	first(check(blueprint; []))
+	first(check(blueprint; []; null))
 	JQ
 
 	local error
-	error=$(jq -r "$program" < "$blueprint" 2>&1) || die "Couldn't check the blueprint $blueprint: $error" 29
+	error=$(jq -r "$program" < "$blueprint" 2>&1) || die "Couldn't check the blueprint $blueprint: $error" 53
 	[[ -z $error ]] || die "Invalid blueprint $blueprint: ${error#* }" "${error%% *}"
 
 }

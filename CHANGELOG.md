@@ -30,6 +30,8 @@ uses [Semantic Versioning](https://semver.org/).
   To keep these settings for every site, as `~/.mkwp` gave them before, put them in a blueprint and name it in `~/.mkwp` with `blueprint = ~/blueprints/default.json`. Each of them can still be given as an option on the command line too.
 - Invalid options are now reported before Docker and DDEV are checked, so a mistyped name, email address, password or other option is reported even when Docker isn't running. The WordPress version given with `-W` or in a blueprint is looked up on WordPress.org last of all, before DDEV is touched too, so a version that no release matches, or a failed lookup, no longer leaves a half-built site behind.
 
+- When mkwp can't create or read `~/.mkwp`, it now exits with status 10, as it does when it can't read the file given with `-c`, instead of 12, which now only means that an option has no value.
+
 ### Fixed
 
 - A relative path to a zip file given with `-T`, `-P` or `-M` is now relative to the current directory. It was looked for in the site's themes, plugins or mu-plugins directory, where it was never found.
