@@ -34,26 +34,19 @@ DESCRIPTION
 	The site can be described by a blueprint, a JSON file given with
 	-B or --blueprint. See BLUEPRINT below.
 
-	If a flag is not specified on the command line, the corresponding
-	option is in the first place set to the value in the blueprint, if
-	there is one and it has a value for the option, in the second place
-	to a value read from the configuration file specified with -c or
-	--config, in the third place to a value read from the configuration
-	file ~/.mkwp, and in the fourth place to a default value.
+	Your personal settings, and the blueprint to use when none is given
+	with -B, can be kept in a configuration file. See CONFIGURATION
+	below.
 
-	If the configuration file ~/.mkwp is missing, an empty one will be
-	created.
-
-	A configuration file should be formatted so that each line starting
-	with the name of a long format flag, excluding leading double dashes
-	(e.g. email instead of --email), followed by an equal sign, where the
-	corresponding flag has not been specified on the command line, the flag
-	is specified with the option set to the value following the equal sign.
-	White space may be used around the equal sign.
-	Examples:
-
-		title = WordPress Test Site
-		php=8.5
+	An option given on the command line always takes precedence. If a
+	site setting (title, language, PHP or WordPress version, or Redis)
+	is not given there, it is in the first place set to the value in the
+	blueprint, if there is one and it has the setting, and in the second
+	place to a default value. If a personal setting (email, user,
+	password or directory) is not given there, it is in the first place
+	set to the value in the configuration file specified with -c or
+	--config, in the second place to the value in the configuration
+	file ~/.mkwp, and in the third place to a default value.
 
 OPTIONS
 	-t <title>
@@ -137,12 +130,18 @@ OPTIONS
 		Adds a Redis service to the site and enables it as WordPress
 		object cache backend: the Redis Object Cache plugin is
 		installed and activated, and its object-cache.php drop-in is
-		enabled. In a configuration file, use redis = true.
+		enabled.
 
 	-B <file>
 	--blueprint=<file>
-		Builds the site that the blueprint <file> describes. See
-		BLUEPRINT below.
+		Builds the site that the blueprint <file> describes, instead
+		of the one a configuration file names, if any. See BLUEPRINT
+		below.
+
+	--no-blueprint
+		Builds the site without a blueprint, even if a configuration
+		file names one. Can't be given together with -B or
+		--blueprint.
 
 	--destroy
 		Destroys the site [NAME]: deletes the DDEV project, including
@@ -152,12 +151,52 @@ OPTIONS
 
 	-c <file>
 	--config=<file>
-		Reads configuration from a file with the path <file>.
-		See description above for details.
+		Reads personal settings, and the blueprint to use, from the
+		configuration file <file>, or from standard input if <file>
+		is -. See CONFIGURATION below.
 
 	-h
 	--help
 		Display this help and exit.
+
+CONFIGURATION
+	mkwp reads the configuration file given with -c or --config, if
+	any, and the configuration file ~/.mkwp. If ~/.mkwp is missing, an
+	empty one is created.
+
+	A configuration file holds your personal settings, and may name a
+	blueprint. Each line is a key, an equal sign and a value, with
+	optional white space around the equal sign. Blank lines and lines
+	starting with # are ignored. Any other line stops mkwp. Example:
+
+		# Personal settings
+		email = jane@example.com
+		user = jane
+		directory = /Users/jane/Sites
+		blueprint = ~/blueprints/default.json
+
+	The keys are:
+
+	email
+	user
+	password
+	directory
+		The same as the options with the same names.
+
+	blueprint
+		The blueprint to build the site from when none is given with
+		-B or --blueprint. A path starting with ~/ is in your home
+		directory, and a relative path is relative to the directory of
+		the configuration file, or to the current directory if the
+		configuration is read from standard input. A blueprint named
+		in the file given with -c is used instead of one named in
+		~/.mkwp. Give --no-blueprint to build a site without it.
+
+	Before mkwp 2.0.0, a configuration file could also hold the site
+	settings name, dirname, title, language, themes, plugins,
+	mu-plugins, php, wp and redis. Now they stop mkwp. Give name
+	and dirname on the command line, and the others in a blueprint
+	or as options.
 
 BLUEPRINT
 	A blueprint is a JSON file that describes a site. Keep it, and the
@@ -301,6 +340,8 @@ DEPENDENCY
 A blueprint is a JSON file that describes a site, and `mkwp --blueprint=<file> NAME` builds that site. The format, the rules for sources and the order in which a site is built are described under BLUEPRINT in the usage above, which also has an example.
 
 A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files, directories, PHP files and other files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
+
+To build every site from a blueprint of yours unless you say otherwise, name it in `~/.mkwp`, as in `blueprint = ~/blueprints/default.json`. A blueprint named in a configuration file given with `-c`, such as one for a client, is used instead, and a blueprint given with `--blueprint` is used before either. `--no-blueprint` builds a plain site. The configuration files hold only your personal settings and that blueprint; everything that describes the site belongs in the blueprint. See CONFIGURATION in the usage above.
 
 `blueprint.schema.json` in this repository is a [JSON Schema](https://json-schema.org/) for blueprints. Name it in a blueprint's `$schema` key, as the example does, and an editor such as VS Code checks the blueprint and completes its keys as you write. The schema on `main` follows the latest mkwp. For the schema of a particular version, put its tag in place of `main`, as in `https://raw.githubusercontent.com/Kntnt/mkwp/v2.0.0/blueprint.schema.json`.
 
