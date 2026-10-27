@@ -44,7 +44,7 @@
 			}
 		},
 		"themes": {
-			"description": "The themes to install. The theme with \"activate\": true is activated, or, if no theme has it, the last one. A theme given with -T/--themes is activated instead.",
+			"description": "The themes to install. The theme with \"activate\": true is activated, or, if no theme has it and there is no database, the last one. A theme given with -T/--themes is activated instead.",
 			"type": "array",
 			"items": {
 				"$ref": "#/$defs/item"
@@ -74,8 +74,24 @@
 			"not": {}
 		},
 		"database": {
-			"description": "Not supported by this version of mkwp.",
-			"not": {}
+			"description": "A database to start the site from: a dump of another WordPress site, whose tables have the prefix wp_. The site keeps the users, settings and active theme and plugins of the dump, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the dump, and themes and plugins with \"activate\": true are activated. A dump can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"dump"
+			],
+			"properties": {
+				"dump": {
+					"description": "The dump: plain SQL in a .sql file, or gzip-compressed SQL in a .sql.gz file. A relative path is relative to the blueprint's directory, and ~/ is the home directory.",
+					"type": "string",
+					"pattern": "\\.sql(\\.gz)?$"
+				},
+				"server": {
+					"description": "The database server to import the dump into, as mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with a version that DDEV has. If omitted, DDEV's default server is used.",
+					"type": "string",
+					"pattern": "^(mariadb|mysql):[0-9]+\\.[0-9]+$"
+				}
+			}
 		},
 		"wp_cli": {
 			"description": "Not supported by this version of mkwp.",
