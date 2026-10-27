@@ -206,10 +206,10 @@ BLUEPRINT
 		source, as described below, or an object with the source in
 		source, and with activate (true or false) and note. Each item
 		with "activate": true is activated, and at most one theme may
-		have it. If no theme has it, the last theme is activated.
-		Themes and plugins given with -T and -P are installed after
-		the blueprint's, and the last theme given with -T is activated
-		instead of the blueprint's.
+		have it. If no theme has it, the last theme is activated,
+		unless there is a database. Themes and plugins given with -T
+		and -P are installed after the blueprint's, and the last theme
+		given with -T is activated instead of the blueprint's.
 
 	mu_plugins
 		An array of the mu-plugins to install. An item is the URL of a
@@ -219,7 +219,27 @@ BLUEPRINT
 		Not supported yet. A blueprint with this key is rejected.
 
 	database
-		Not supported yet. A blueprint with this key is rejected.
+		An object with a database to start the site from: a dump of
+		another WordPress site in dump, and the database server to
+		import it into in server. The dump is plain SQL in a .sql file
+		or gzip-compressed SQL in a .sql.gz file, and its tables must
+		have the prefix wp_. A relative path is relative to the
+		blueprint's directory. The server is given as
+		mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with
+		a version that DDEV has. If it's omitted, DDEV's default is
+		used.
+
+		The site keeps the users, settings and active theme and
+		plugins of the dump, but for what is given explicitly: the
+		themes and plugins with "activate": true and the theme given
+		with -T are activated, and a title and a language given
+		replace those of the dump. What mkwp gives a new site by
+		default, such as a title made from NAME, pretty permalinks
+		and the timezone of the language, is not applied. The user
+		is made an administrator with the email address and
+		password given, and is created if the dump doesn't have it.
+		A dump can hold secrets, such as licence keys and API
+		credentials, which mkwp doesn't remove.
 
 	wp_cli
 		Not supported yet. A blueprint with this key is rejected.
@@ -247,6 +267,11 @@ BLUEPRINT
 		  used, the Redis add-on, and started.
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
+		- The dump is imported, if there is one. The old address is
+		  replaced by the site's, also where it's JSON-escaped, the
+		  database is upgraded, the user is made an administrator,
+		  the title and language given are applied, and the rewrite
+		  rules and the object cache are flushed.
 		- The theme to activate, and the plugins with
 		  "activate": true, are activated.
 		- Redis is enabled as object cache, if it is used.
@@ -264,6 +289,10 @@ DEPENDENCY
 A blueprint is a JSON file that describes a site, and `mkwp --blueprint=<file> NAME` builds that site. The format, the rules for sources and the order in which a site is built are described under BLUEPRINT in the usage above, which also has an example.
 
 A relative path in a blueprint is relative to the blueprint's own directory, so a blueprint and the zip files it refers to can be kept together in a directory of their own. That directory can be a Git repository, private if it holds commercial plugins or code of your own, and can be cloned anywhere.
+
+A blueprint's `database` starts the site from a dump of another site, with all the settings and content that site has. Only a dump whose tables have the prefix `wp_` can be used.
+
+**A dump can contain secrets.** Plugins keep licence keys, API credentials and similar secrets in the database, and a dump holds them as they are. mkwp copies a dump into the new site without sanitizing it. Keep dumps only where those secrets may be, such as a private repository, and remove what doesn't belong there before you add a dump to a blueprint.
 
 `blueprint.schema.json` in this repository is a [JSON Schema](https://json-schema.org/) for blueprints. Name it in a blueprint's `$schema` key, as the example does, and an editor such as VS Code checks the blueprint and completes its keys as you write. The schema on `main` follows the latest mkwp. For the schema of a particular version, put its tag in place of `main`, as in `https://raw.githubusercontent.com/Kntnt/mkwp/v2.0.0/blueprint.schema.json`.
 
