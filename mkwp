@@ -702,11 +702,11 @@ read_blueprint_item() {
 	# Only a slug on WordPress.org can be pinned to a version, and only a Git
 	# repository to a ref, so an item has at most one of them, in pin
 	if [[ $has_version == true ]]; then
-		[[ $kind == slug ]] || die "Invalid blueprint $blueprint: $where has a version, but only a slug on WordPress.org can have one" 180
+		[[ $kind == slug ]] || die "Invalid blueprint $blueprint: $where has a version, but only a slug on WordPress.org can have one" 41
 		[[ $pin =~ $pin_pattern ]] || die "Invalid blueprint $blueprint: \"$pin\" in $where.version is not a valid version" 33
 	fi
 	if [[ $has_ref == true ]]; then
-		[[ $kind == git ]] || die "Invalid blueprint $blueprint: $where has a ref, but only a Git repository can have one" 181
+		[[ $kind == git ]] || die "Invalid blueprint $blueprint: $where has a ref, but only a Git repository can have one" 42
 		[[ $pin =~ $pin_pattern ]] || die "Invalid blueprint $blueprint: \"$pin\" in $where.ref is not a valid Git ref" 33
 	fi
 
