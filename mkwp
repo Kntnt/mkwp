@@ -265,18 +265,25 @@ help() {
 	\e[1mfiles\e[0m
 		An array of the files and directories to copy into wp-content,
 		such as the media that a database refers to. An item is an
-		object with a local file or directory in \e[1msource\e[0m, the directory
-		to copy it into in \e[1mtarget\e[0m, and \e[1mnote\e[0m. A relative source is
-		relative to the blueprint's directory. The target is relative
-		to wp-content, as in \"uploads/2024/01\", and is created if it's
-		missing. It must not be absolute or start with ~, and its ..
-		parts must not lead out of wp-content. A file keeps its name,
-		and replaces a file with the same name. A directory's contents
-		are merged with what the target already has. Example:
+		object with a local file or directory in \e[1msource\e[0m, where to
+		copy it in \e[1mtarget\e[0m, and \e[1mnote\e[0m. A relative source is relative
+		to the blueprint's directory. The target is relative to
+		wp-content. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. Missing directories in
+		it are created.
+
+		As with cp, the target of a file is the path of the copy, so
+		the copy can get a new name, as in \"uploads/2024/01/logo.png\",
+		and replaces a file with the same path. A target that ends
+		with /, or is a directory that already exists, is the
+		directory to copy the file into under its own name. The
+		target of a directory is the directory to merge its contents
+		into. Example:
 
 			\"files\": [
 			  { \"source\": \"./media\", \"target\": \"uploads\" },
-			  { \"source\": \"./fonts/brand.woff2\", \"target\": \"fonts\" }
+			  { \"source\": \"./fonts/brand.woff2\", \"target\": \"fonts/\" },
+			  { \"source\": \"./logo.png\", \"target\": \"uploads/2024/01/client-logo.png\" }
 			]
 
 	\e[1mdatabase\e[0m
@@ -657,8 +664,8 @@ check_blueprint() {
 		note: note
 	}};
 
-	# files: each item is a local file or directory to copy, and the
-	# directory underneath wp-content to copy it into.
+	# files: each item is a local file or directory to copy, and the path
+	# underneath wp-content to copy it to.
 	def files: {type: "array", items: {type: "object", required: ["source", "target"], props: {
 		source: string,
 		target: string,
@@ -1165,7 +1172,7 @@ install_items() {
 
 # Usage: read_blueprint_files
 # Reads the files in the blueprint, and checks that each source exists and can
-# be read, and that each target is a directory underneath wp-content. Adds
+# be read, and that each target is a path underneath wp-content. Adds
 # them to copy_sources and copy_targets. See copy_files.
 read_blueprint_files() {
 
@@ -1186,6 +1193,13 @@ read_blueprint_files() {
 		# shellcheck disable=SC2088 # A literal ~ is meant
 		[[ $target && $target != /* && $target != '~'* ]] || die "Invalid blueprint $blueprint: \"$target\" in $where.target is not a path relative to wp-content" 37
 		target_path=$(wp_content_path "$target") || die "Invalid blueprint $blueprint: \"$target\" in $where.target is outside wp-content" 38
+
+		# A target that ends with /, or with a . or .. part, is a directory,
+		# which a file is copied into under its own name. It keeps a / at
+		# the end, and wp-content itself is ./
+		if [[ $target =~ (^|/)(\.\.?)?$ ]]; then
+			target_path=${target_path:-.}/
+		fi
 
 		copy_sources+=("$source_path")
 		copy_targets+=("$target_path")
@@ -1220,22 +1234,25 @@ wp_content_path() {
 }
 
 # Usage: copy_files
-# Copies each file in copy_sources into the directory with the same index in
-# copy_targets, which is relative to wp-content and is created if it's missing,
-# and merges the contents of each directory into it. A file with the same name
-# is replaced. Mutagen is flushed afterwards, so that the copies are visible
-# inside the container to the next WP-CLI step. Only uploads is mounted into
-# the container directly.
+# Copies each file in copy_sources to the path with the same index in
+# copy_targets, which is relative to wp-content, as cp does: into it if it ends
+# with / or is a directory, and to a file with that name otherwise, which is
+# replaced if it's there. Merges the contents of each directory in
+# copy_sources into the directory in copy_targets. Missing directories are
+# created. Mutagen is flushed afterwards, so that the copies are visible inside
+# the container to the next WP-CLI step. Only uploads is mounted into the
+# container directly.
 copy_files() {
 
 	local i target
 	for i in "${!copy_sources[@]}"; do
 		target="$wp_path/wp-content/${copy_targets[i]}"
-		mkdir -p "$target"
 		if [[ -d ${copy_sources[i]} ]]; then
+			mkdir -p "$target"
 			cp -R "${copy_sources[i]}/." "$target/"
 		else
-			cp "${copy_sources[i]}" "$target/"
+			mkdir -p "${target%/*}"
+			cp "${copy_sources[i]}" "$target"
 		fi
 	done
 

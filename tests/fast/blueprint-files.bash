@@ -4,7 +4,8 @@
 
 test_accepts_a_file_and_a_directory_to_copy() {
 	write_blueprint '{"files": [
-		{"source": "./media/logo.png", "target": "uploads/2024/01"},
+		{"source": "./media/logo.png", "target": "uploads/2024/01/client-logo.png"},
+		{"source": "./media/logo.png", "target": "uploads/2024/02/"},
 		{"source": "./mu-plugins", "target": "mu-plugins", "note": "Our own mu-plugins"}
 	]}'
 	mkdir -p "$sandbox/blueprint/media" "$sandbox/blueprint/mu-plugins"

@@ -262,18 +262,25 @@ BLUEPRINT
 	files
 		An array of the files and directories to copy into wp-content,
 		such as the media that a database refers to. An item is an
-		object with a local file or directory in source, the directory
-		to copy it into in target, and note. A relative source is
-		relative to the blueprint's directory. The target is relative
-		to wp-content, as in "uploads/2024/01", and is created if it's
-		missing. It must not be absolute or start with ~, and its ..
-		parts must not lead out of wp-content. A file keeps its name,
-		and replaces a file with the same name. A directory's contents
-		are merged with what the target already has. Example:
+		object with a local file or directory in source, where to
+		copy it in target, and note. A relative source is relative
+		to the blueprint's directory. The target is relative to
+		wp-content. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. Missing directories in
+		it are created.
+
+		As with cp, the target of a file is the path of the copy, so
+		the copy can get a new name, as in "uploads/2024/01/logo.png",
+		and replaces a file with the same path. A target that ends
+		with /, or is a directory that already exists, is the
+		directory to copy the file into under its own name. The
+		target of a directory is the directory to merge its contents
+		into. Example:
 
 			"files": [
 			  { "source": "./media", "target": "uploads" },
-			  { "source": "./fonts/brand.woff2", "target": "fonts" }
+			  { "source": "./fonts/brand.woff2", "target": "fonts/" },
+			  { "source": "./logo.png", "target": "uploads/2024/01/client-logo.png" }
 			]
 
 	database
