@@ -189,8 +189,8 @@ help() {
 
 	\e[1mnote\e[0m
 		A note of your own, since JSON has no comments. It may also be
-		given in each item of \e[1mthemes\e[0m, \e[1mplugins\e[0m and \e[1mmu_plugins\e[0m. mkwp
-		ignores it.
+		given in each item of \e[1mthemes\e[0m, \e[1mplugins\e[0m, \e[1mmu_plugins\e[0m and
+		\e[1mfiles\e[0m. mkwp ignores it.
 
 	\e[1msite\e[0m
 		An object with the settings of the site: \e[1mtitle\e[0m, \e[1mlanguage\e[0m, \e[1mphp\e[0m
@@ -214,7 +214,21 @@ help() {
 		PHP file, or an object with the URL in \e[1msource\e[0m, and with \e[1mnote\e[0m.
 
 	\e[1mfiles\e[0m
-		Not supported yet. A blueprint with this key is rejected.
+		An array of the files and directories to copy into wp-content,
+		such as the media that a database refers to. An item is an
+		object with a local file or directory in \e[1msource\e[0m, the directory
+		to copy it into in \e[1mtarget\e[0m, and \e[1mnote\e[0m. A relative source is
+		relative to the blueprint's directory. The target is relative
+		to wp-content, as in \"uploads/2024/01\", and is created if it's
+		missing. It must not be absolute or start with ~, and its ..
+		parts must not lead out of wp-content. A file keeps its name,
+		and replaces a file with the same name. A directory's contents
+		are merged with what the target already has. Example:
+
+			\"files\": [
+			  { \"source\": \"./media\", \"target\": \"uploads\" },
+			  { \"source\": \"./fonts/brand.woff2\", \"target\": \"fonts\" }
+			]
 
 	\e[1mdatabase\e[0m
 		Not supported yet. A blueprint with this key is rejected.
@@ -245,6 +259,7 @@ help() {
 		  used, the Redis add-on, and started.
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
+		- The files are copied into wp-content.
 		- The theme to activate, and the plugins with
 		  \"activate\": true, are activated.
 		- Redis is enabled as object cache, if it is used.
