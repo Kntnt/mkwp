@@ -305,7 +305,9 @@ BLUEPRINT
 		plugins of the database, but for what is given explicitly:
 		the themes and plugins with "activate": true and the theme
 		given with -T are activated, and a title and a language given
-		replace those of the database. What mkwp gives a new site by
+		replace those of the database. Without a language given, the
+		language pack of the database's language is installed, so
+		that the site shows in it. What mkwp gives a new site by
 		default, such as a title made from NAME, pretty permalinks
 		and the timezone of the language, is not applied. The user
 		is made an administrator with the email address and
@@ -360,8 +362,9 @@ BLUEPRINT
 		  is one. The old address is replaced by the site's, also
 		  where it's JSON-escaped, the database is upgraded, the
 		  user is made an administrator, the title and language
-		  given are applied, and the rewrite rules and the object
-		  cache are flushed.
+		  given are applied, or else the language pack of the
+		  database's language is installed, and the rewrite rules
+		  and the object cache are flushed.
 		- The theme to activate, and the plugins with
 		  "activate": true, are activated.
 		- Redis is enabled as object cache, if it is used.

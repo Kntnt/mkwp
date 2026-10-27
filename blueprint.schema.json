@@ -97,7 +97,7 @@
 			}
 		},
 		"database": {
-			"description": "A database to start the site from: a dump or a DDEV snapshot of another WordPress site, whose tables have the prefix wp_. It has exactly one of dump and snapshot. The site keeps the users, settings and active theme and plugins of the database, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the database, and themes and plugins with \"activate\": true are activated. A dump or a snapshot can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
+			"description": "A database to start the site from: a dump or a DDEV snapshot of another WordPress site, whose tables have the prefix wp_. It has exactly one of dump and snapshot. The site keeps the users, settings and active theme and plugins of the database, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the database, the language pack of the database's language is installed if no language is given, and themes and plugins with \"activate\": true are activated. A dump or a snapshot can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
 			"type": "object",
 			"additionalProperties": false,
 			"oneOf": [

@@ -308,7 +308,9 @@ help() {
 		plugins of the database, but for what is given explicitly:
 		the themes and plugins with \"activate\": true and the theme
 		given with \e[1m-T\e[0m are activated, and a title and a language given
-		replace those of the database. What mkwp gives a new site by
+		replace those of the database. Without a language given, the
+		language pack of the database's language is installed, so
+		that the site shows in it. What mkwp gives a new site by
 		default, such as a title made from NAME, pretty permalinks
 		and the timezone of the language, is not applied. The user
 		is made an administrator with the email address and
@@ -363,8 +365,9 @@ help() {
 		  is one. The old address is replaced by the site's, also
 		  where it's JSON-escaped, the database is upgraded, the
 		  user is made an administrator, the title and language
-		  given are applied, and the rewrite rules and the object
-		  cache are flushed.
+		  given are applied, or else the language pack of the
+		  database's language is installed, and the rewrite rules
+		  and the object cache are flushed.
 		- The theme to activate, and the plugins with
 		  \"activate\": true, are activated.
 		- Redis is enabled as object cache, if it is used.
@@ -1434,11 +1437,21 @@ adopt_database() {
 
 	# Apply the site settings that were given explicitly. The settings mkwp
 	# gives a new site by default, such as a title made from NAME, are not.
+	# Without a language given, the site keeps the language of the database,
+	# but WordPress falls back to English if its language pack is missing, so
+	# it's installed. The database has a timezone of its own, so none is
+	# derived from the language.
 	if [[ $title_given ]]; then
 		ddev wp option update blogname "$title" --skip-plugins --skip-themes
 	fi
 	if [[ $language_given ]]; then
 		ddev wp site switch-language "$language" --skip-plugins --skip-themes
+	else
+		local locale
+		locale=$(wp_value option get WPLANG) || locale=
+		if [[ $locale && $locale != en_US ]]; then
+			ddev wp language core install "$locale" --activate --skip-plugins --skip-themes
+		fi
 	fi
 
 	# Flush the rewrite rules with plugins and themes, since they add rules

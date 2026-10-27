@@ -1,8 +1,15 @@
 # Sites built from the database of another site. Site A is built from a
-# blueprint without a database, and is then changed the way a user would
-# change a site: it gets another user, a language of its own in the database,
-# another permalink structure, and its address in JSON. Its database is then
-# taken, as a dump and as a DDEV snapshot, and other sites are built from it.
+# blueprint without a database, with every kind of source a blueprint has: two
+# local theme directories, of which the one marked to be activated is listed
+# first, a local zip file for each plugin, of which one is marked to be
+# activated, two plugins from a local bare Git repository reached through a
+# file:// URL, one at the latest tag and one at an older tag given as ref, an
+# mu-plugin from a local PHP file, and a file copied into uploads. Its WP-CLI
+# commands change it the way a user would change a site: it gets another user,
+# a language of its own in the database, a timezone that isn't the one of its
+# language, another permalink structure, and its address in JSON. Its
+# database is then taken, as a dump and as a DDEV snapshot, and other sites
+# are built from it.
 #
 # Each site in from_a is built by make_site_from_a, from the same blueprint
 # but for the database, and with the same options. The tests that loop over
@@ -25,31 +32,51 @@ editor_password='editor-password-in-b'
 new_user='mkwp-new'
 new_email='new@example.com'
 
+# The timezone of site A, which mkwp doesn't give a site of any language.
+a_timezone='Atlantic/Azores'
+
 setup_file() {
 
-	mkdir -p "$fixtures"
-	make_zip "$fixtures/mkwp-theme-one.zip" theme mkwp-theme-one 1.0.0
-	make_zip "$fixtures/mkwp-theme-two.zip" theme mkwp-theme-two 1.0.0
+	mkdir -p "$fixtures/mu-plugins" "$fixtures/media"
+	make_extension "$fixtures/themes/mkwp-theme-one" theme mkwp-theme-one 1.0.0
+	make_extension "$fixtures/themes/mkwp-theme-two" theme mkwp-theme-two 1.0.0
 	make_zip "$fixtures/mkwp-active.zip" plugin mkwp-active 1.0.0
 	make_zip "$fixtures/mkwp-inactive.zip" plugin mkwp-inactive 1.0.0
+	make_repository "$fixtures/mkwp-git-latest.git" plugin mkwp-git-latest 1.0.0 1.1.0 1.2.0-dev
+	make_repository "$fixtures/mkwp-git-ref.git" plugin mkwp-git-ref 1.0.0 1.1.0
+	printf '<?php\ndefine( "MKWP_MU_PLUGIN", true );\n' > "$fixtures/mu-plugins/mkwp-mu-plugin.php"
+	echo 'Media of site A' > "$fixtures/media/mkwp-media.txt"
+
+	# Site A's address, JSON-escaped in a JSON object, as a plugin may keep
+	# it, written as a JSON string for the blueprint.
+	local a_url json
+	a_url=$(site_url a)
+	json=$(jq -n --arg value "{\"home\":\"${a_url//\//\\/}\"}" '$value')
 
 	# Site A, on an older WordPress than the sites built from it, so that
-	# their database has to be upgraded. The last theme is activated.
-	cat > "$fixtures/a.json" <<- 'EOT'
+	# their database has to be upgraded.
+	cat > "$fixtures/a.json" <<- EOT
 	{
 		"site": {"title": "Site A", "language": "sv_SE", "php": "8.4", "wp": "6.8"},
-		"themes": ["./mkwp-theme-one.zip", "./mkwp-theme-two.zip"],
-		"plugins": [{"source": "./mkwp-active.zip", "activate": true}, "./mkwp-inactive.zip"]
+		"themes": [{"source": "./themes/mkwp-theme-two", "activate": true}, "./themes/mkwp-theme-one"],
+		"plugins": [
+			{"source": "./mkwp-active.zip", "activate": true},
+			"./mkwp-inactive.zip",
+			"file://$fixtures/mkwp-git-latest.git",
+			{"source": "file://$fixtures/mkwp-git-ref.git", "ref": "v1.0.0"}
+		],
+		"mu_plugins": ["./mu-plugins/mkwp-mu-plugin.php"],
+		"files": [{"source": "./media/mkwp-media.txt", "target": "uploads/2024/01/"}],
+		"wp_cli": [
+			["user", "create", "$editor", "editor@example.com", "--role=editor", "--user_pass=editor-password-in-a"],
+			["option", "update", "WPLANG", "sv_SE"],
+			["option", "update", "timezone_string", "$a_timezone"],
+			["rewrite", "structure", "/%year%/%postname%/"],
+			["option", "add", "mkwp_e2e_json", $json]
+		]
 	}
 	EOT
 	make_site a -B "$fixtures/a.json"
-
-	local a_url
-	a_url=$(site_url a)
-	site_wp a user create "$editor" editor@example.com --role=editor --user_pass=editor-password-in-a
-	site_wp a option update WPLANG sv_SE
-	site_wp a rewrite structure '/%year%/%postname%/'
-	site_wp a option add mkwp_e2e_json "{\"home\":\"${a_url//\//\\/}\"}"
 
 	local a_dir
 	a_dir="$sites_dir/$(site_name a)"
@@ -70,7 +97,7 @@ setup_file() {
 	# user who is not in A's database. Its blueprint marks a theme.
 	cat > "$fixtures/defaults.json" <<- 'EOT'
 	{
-		"themes": ["./mkwp-theme-two.zip", {"source": "./mkwp-theme-one.zip", "activate": true}],
+		"themes": ["./themes/mkwp-theme-two", {"source": "./themes/mkwp-theme-one", "activate": true}],
 		"database": {"dump": "./a.sql.gz"}
 	}
 	EOT
@@ -81,14 +108,15 @@ setup_file() {
 # Usage: make_site_from_a <label> <database>
 # Builds the site <label> from a blueprint with the JSON object <database> as
 # its database, and with the editor of site A as mkwp's user. The blueprint
-# gives a title and a language, and lists A's themes and plugins in another
-# order, without marks but for the plugin that is inactive in A.
+# gives a title and a language, and lists A's themes and its zipped plugins
+# without marks, but for the plugin that is inactive in A. The theme listed
+# last is not the one that is active in A.
 make_site_from_a() {
 
 	cat > "$fixtures/$1.json" <<- EOT
 	{
 		"site": {"title": "Site B", "language": "en_GB"},
-		"themes": ["./mkwp-theme-two.zip", "./mkwp-theme-one.zip"],
+		"themes": ["./themes/mkwp-theme-two", "./themes/mkwp-theme-one"],
 		"plugins": ["./mkwp-active.zip", {"source": "./mkwp-inactive.zip", "activate": true}],
 		"database": $2
 	}
@@ -132,6 +160,19 @@ assert_site_equal() {
 assert_stopped_with() {
 	[[ $status == "$1" ]] || fail "Expected exit status $1, got $status, with this output:\n$(tail -n 20 <<< "$output")"
 	assert_equal "$2" "$(tail -n 1 <<< "$output")"
+}
+
+# What the tests below find in the other sites comes from site A, so first
+# check that A is what its blueprint describes.
+test_builds_site_a_from_every_kind_of_source() {
+	assert_equal mkwp-theme-two "$(site_wp a theme list --status=active --field=name)"
+	assert_equal mkwp-active "$(site_wp a plugin list --status=active --field=name)"
+	assert_equal 1.1.0 "$(site_wp a plugin get mkwp-git-latest --field=version)"
+	assert_equal 1.0.0 "$(site_wp a plugin get mkwp-git-ref --field=version)"
+	assert_equal loaded "$(site_wp a eval 'echo defined( "MKWP_MU_PLUGIN" ) ? "loaded" : "not loaded";')"
+	assert_equal 'Media of site A' "$(site_wp a eval 'echo file_get_contents(wp_upload_dir()["basedir"] . "/2024/01/mkwp-media.txt");')"
+	assert_equal editor "$(site_wp a user get "$editor" --field=roles)"
+	assert_equal "$a_timezone" "$(site_wp a option get timezone_string)"
 }
 
 test_replaces_the_old_address_as_plain_text_and_json_escaped() {
@@ -213,12 +254,26 @@ test_keeps_the_title_and_language_of_the_database_when_none_is_given() {
 	assert_equal sv_SE "$(site_wp defaults eval 'echo get_locale();')"
 }
 
+# WordPress falls back to English for a language whose language pack is
+# missing, so a site that keeps the language of the database must get its
+# language pack, and show in the same language as site A.
+test_installs_the_language_of_the_database_when_none_is_given() {
+
+	site_wp defaults language core is-installed sv_SE || fail "The language pack of sv_SE is not installed."
+
+	local in_a
+	in_a=$(site_wp a eval 'echo __( "Settings" );')
+	[[ $in_a != Settings ]] || fail "Site A doesn't show in its language, so it can't tell whether site defaults does."
+	assert_equal "$in_a" "$(site_wp defaults eval 'echo __( "Settings" );')"
+
+}
+
 # A new site gets the timezone of its language and pretty permalinks, but a
 # site with a database keeps those of the database.
 test_keeps_the_timezone_and_permalinks_of_the_database() {
 	local site
 	for site in "${from_a[@]}" defaults; do
-		assert_site_equal "$site" Europe/Stockholm "$(site_wp "$site" option get timezone_string)"
+		assert_site_equal "$site" "$a_timezone" "$(site_wp "$site" option get timezone_string)"
 		assert_site_equal "$site" '/%year%/%postname%/' "$(site_wp "$site" option get permalink_structure)"
 	done
 }
