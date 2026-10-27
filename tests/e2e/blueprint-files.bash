@@ -33,6 +33,7 @@ setup_file() {
 # Echoes the path of each file underneath the uploads directory of the site
 # <label>, relative to it, sorted.
 uploads_listing() {
+	# shellcheck disable=SC2016 # The code is PHP's, not the shell's
 	site_wp "$1" eval '
 		$base = wp_upload_dir()["basedir"];
 		$files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($base, FilesystemIterator::SKIP_DOTS));

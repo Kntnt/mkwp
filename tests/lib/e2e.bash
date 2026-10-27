@@ -64,10 +64,12 @@ site_name() {
 	echo "$e2e_prefix-$1"
 }
 
-# Usage: make_site <label> [<option>...]
-# Builds the site <label> with mkwp, with the site user and any <option>..., in
-# the run's sites directory. Fails the test if mkwp fails.
-make_site() {
+# Usage: run_site <label> <arg>...
+# Runs mkwp with nothing but <arg>... on the command line to build the site
+# <label>, as run_mkwp does, after registering the site, so that it's
+# destroyed however the build goes. Leaves it to the caller to check how that
+# went.
+run_site() {
 
 	local name
 	name=$(site_name "$1")
@@ -76,9 +78,35 @@ make_site() {
 	echo "$name" >> "$e2e_registry"
 	note "  building $name"
 
-	run_mkwp -d "$sites_dir" -m "$site_email" -u "$site_user" -p "$site_password" "$@" "$name"
-	(( status == 0 )) || fail "mkwp exited with status $status while building $name. The end of its output:\n$(tail -n 40 "$run_dir/stdout" | without_colours)\n$output"
+	run_mkwp "$@" "$name"
 
+}
+
+# Usage: try_site <label> [<option>...]
+# Runs mkwp to build the site <label> with the site user and any <option>...,
+# in the run's sites directory, as run_site does, and leaves it to the caller
+# to check how that went.
+try_site() {
+
+	local label=$1
+	shift
+
+	run_site "$label" -d "$sites_dir" -m "$site_email" -u "$site_user" -p "$site_password" "$@"
+
+}
+
+# Usage: make_site <label> [<option>...]
+# Builds the site <label> as try_site does. Fails the test if mkwp fails.
+make_site() {
+	try_site "$@"
+	assert_built "$1"
+}
+
+# Usage: assert_built <label>
+# Asserts that mkwp, as last run by run_mkwp, built the site <label>, and shows
+# the end of what it wrote if it didn't.
+assert_built() {
+	(( status == 0 )) || fail "mkwp exited with status $status while building $(site_name "$1"). The end of its output:\n$(tail -n 40 "$run_dir/stdout" | without_colours)\n$output"
 }
 
 # Usage: site_wp <label> <arg>...

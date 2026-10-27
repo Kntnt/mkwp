@@ -181,6 +181,14 @@ write_zip() {
 
 }
 
+# Usage: assert_accepted
+# Asserts that mkwp, as last run by run_mkwp, accepted what it was given and
+# got as far as checking Docker, which isn't running, and created nothing.
+assert_accepted() {
+	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
+	assert_nothing_created
+}
+
 # Usage: assert_nothing_created
 # Asserts that mkwp created nothing in the work directory, where it would have
 # put the site, and that DDEV was asked for nothing but whether Docker runs and

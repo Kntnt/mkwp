@@ -11,8 +11,7 @@ test_accepts_a_file_and_a_directory_to_copy() {
 	mkdir -p "$sandbox/blueprint/media" "$sandbox/blueprint/mu-plugins"
 	echo 'A logo' > "$sandbox/blueprint/media/logo.png"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_accepts_a_target_that_stays_inside_wp_content() {
@@ -22,16 +21,14 @@ test_accepts_a_target_that_stays_inside_wp_content() {
 	]}'
 	mkdir "$sandbox/blueprint/media"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_finds_a_source_in_the_home_directory() {
 	write_blueprint '{"files": [{"source": "~/media", "target": "uploads"}]}'
 	mkdir "$mkwp_home/media"
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_does_not_look_for_a_relative_source_in_the_current_directory() {

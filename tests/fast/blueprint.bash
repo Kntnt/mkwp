@@ -13,8 +13,7 @@ test_stops_when_jq_is_missing() {
 test_needs_no_jq_without_a_blueprint() {
 	hide jq
 	run_mkwp -m test@example.com site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 # jq can lack what the check needs, such as a jq built without regular
@@ -115,8 +114,7 @@ test_accepts_schema_and_notes_on_every_item() {
 		"mu_plugins": ["https://example.com/one.php", {"source": "https://example.com/two.php", "note": "A note on an mu-plugin"}]
 	}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_rejects_an_invalid_title() {
@@ -173,16 +171,14 @@ test_finds_a_relative_source_in_the_blueprint_directory() {
 	write_zip "$sandbox/blueprint/plugin.zip" plugin
 	write_zip "$sandbox/theme.zip" theme
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_finds_a_source_in_the_home_directory() {
 	write_blueprint '{"plugins": ["~/plugin.zip"]}'
 	write_zip "$mkwp_home/plugin.zip" plugin
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_rejects_a_local_source_that_does_not_exist() {
@@ -217,8 +213,7 @@ test_needs_no_unzip_for_a_local_zip_file() {
 	write_zip "$sandbox/blueprint/plugin-1.0.0.zip" plugin
 	hide unzip
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_rejects_two_activated_themes() {

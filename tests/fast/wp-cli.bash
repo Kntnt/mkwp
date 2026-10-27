@@ -5,8 +5,7 @@
 test_accepts_wp_cli_commands() {
 	write_blueprint '{"wp_cli": [["option", "update", "blogname", "A title with spaces"], ["rewrite", "flush"]]}'
 	run_mkwp -m test@example.com -B "$blueprint" site
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
+	assert_accepted
 }
 
 test_rejects_wp_cli_that_is_not_an_array() {

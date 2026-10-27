@@ -3,14 +3,6 @@
 # here Docker is not running. A blueprint that passes every check gets mkwp as
 # far as that, and no further.
 
-# Usage: assert_accepted
-# Asserts that mkwp, as last run by run_mkwp, accepted the blueprint and got as
-# far as checking Docker, and created nothing.
-assert_accepted() {
-	assert_rejected 1 'Error: Check that a Docker provider is installed and running and that DDEV is properly installed'
-	assert_nothing_created
-}
-
 test_accepts_a_version_on_a_wordpress_org_slug() {
 	write_blueprint '{"themes": [{"source": "twentytwentyfive", "version": "1.0"}], "plugins": [{"source": "hello-dolly", "version": "1.6"}]}'
 	run_mkwp -m test@example.com -B "$blueprint" site

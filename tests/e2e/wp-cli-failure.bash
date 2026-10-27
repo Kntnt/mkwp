@@ -1,7 +1,7 @@
 # A site built from a blueprint whose second WP-CLI command fails, since it
 # asks for an option that doesn't exist. mkwp must stop there, and not open
-# the site. The build is expected to fail, so it's run here and not with
-# make_site, and what mkwp did is kept in files for the tests to read.
+# the site. The build is expected to fail, so it's run with try_site and not
+# with make_site, and what mkwp did is kept in files for the tests to read.
 
 fixtures="$run_dir/fixtures/wp-cli-failure"
 
@@ -19,12 +19,7 @@ setup_file() {
 	}
 	EOT
 
-	local name
-	name=$(site_name wp-cli-failure)
-	echo "$name" >> "$e2e_registry"
-	note "  building $name, which is meant to fail"
-
-	run_mkwp -d "$sites_dir" -m "$site_email" -u "$site_user" -p "$site_password" -B "$fixtures/blueprint.json" "$name"
+	try_site wp-cli-failure -B "$fixtures/blueprint.json"
 	echo "$status" > "$fixtures/status"
 	printf '%s\n' "$output" > "$fixtures/stderr"
 	cp "$run_dir/stdout" "$fixtures/stdout"

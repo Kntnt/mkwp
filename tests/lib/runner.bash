@@ -98,6 +98,14 @@ assert_rejected() {
 
 }
 
+# Usage: assert_stopped_with <status> <message>
+# Asserts that mkwp, as last run by run_mkwp, exited with <status>, and that
+# the last thing it wrote to stderr was <message>.
+assert_stopped_with() {
+	[[ $status == "$1" ]] || fail "Expected exit status $1, got $status, with this output:\n$(tail -n 20 <<< "$output")"
+	assert_equal "$2" "$(tail -n 1 <<< "$output")"
+}
+
 # Usage: assert_equal <expected> <actual>
 # Asserts that <actual> is <expected>.
 assert_equal() {

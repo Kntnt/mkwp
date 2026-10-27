@@ -126,22 +126,6 @@ make_site_from_a() {
 
 }
 
-# Usage: try_site <label> [<option>...]
-# Runs mkwp to build the site <label> as make_site does, but leaves it to the
-# test to check how that went.
-try_site() {
-
-	local name
-	name=$(site_name "$1")
-	shift
-
-	echo "$name" >> "$e2e_registry"
-	note "  building $name"
-
-	run_mkwp -d "$sites_dir" -m "$site_email" -u "$site_user" -p "$site_password" "$@" "$name"
-
-}
-
 # Usage: site_url <label>
 # Echoes the address of the site <label>.
 site_url() {
@@ -152,14 +136,6 @@ site_url() {
 # Asserts that <actual>, found in the site <label>, is <expected>.
 assert_site_equal() {
 	[[ $3 == "$2" ]] || fail "In site $1, expected:\n$2\nGot:\n$3"
-}
-
-# Usage: assert_stopped_with <status> <message>
-# Asserts that mkwp, as last run by run_mkwp, exited with <status>, and that
-# the last thing it wrote to stderr was <message>.
-assert_stopped_with() {
-	[[ $status == "$1" ]] || fail "Expected exit status $1, got $status, with this output:\n$(tail -n 20 <<< "$output")"
-	assert_equal "$2" "$(tail -n 1 <<< "$output")"
 }
 
 # What the tests below find in the other sites comes from site A, so first

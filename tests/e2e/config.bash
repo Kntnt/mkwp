@@ -59,19 +59,10 @@ setup_file() {
 
 # Usage: build_site <label> <arg>...
 # Builds the site <label> with mkwp and nothing but <arg>... on the command
-# line. Fails the test if mkwp fails. See make_site.
+# line. Fails the test if mkwp fails. See run_site.
 build_site() {
-
-	local name
-	name=$(site_name "$1")
-	shift
-
-	echo "$name" >> "$e2e_registry"
-	note "  building $name"
-
-	run_mkwp "$@" "$name"
-	(( status == 0 )) || fail "mkwp exited with status $status while building $name. The end of its output:\n$(tail -n 40 "$run_dir/stdout" | without_colours)\n$output"
-
+	run_site "$@"
+	assert_built "$1"
 }
 
 test_creates_the_sites_in_the_directory_from_home_config() {
