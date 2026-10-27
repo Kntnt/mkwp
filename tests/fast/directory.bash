@@ -8,6 +8,14 @@ test_rejects_a_site_directory_that_already_exists() {
 	assert_nothing_created
 }
 
+test_rejects_a_site_directory_that_holds_a_ddev_project() {
+	mkdir -p "$mkwp_dir/site/.ddev"
+	touch "$mkwp_dir/site/.ddev/config.yaml"
+	run_mkwp -m test@example.com site
+	assert_rejected 15 "A DDEV project already exists in the directory $mkwp_dir/site."
+	assert_nothing_created
+}
+
 test_rejects_a_home_directory_that_does_not_exist() {
 	run_mkwp -m test@example.com -d "$mkwp_dir/missing" site
 	assert_rejected 14 "Cannot create $mkwp_dir/missing/site"

@@ -660,6 +660,7 @@ main() {
 	[[ "$language" =~ ^[[:lower:]]{2}(_[[:upper:]]{2})?$ ]] || die "Invalid language code: $language" 8
 	[[ "$php" =~ ^7\.[0-4]$|^8\.[0-5]$ ]] || die "Invalid PHP version: $php" 9
 	[[ -z "$wp" || "$wp" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "Invalid WordPress version: $wp" 17
+	[[ ! -e "$wp_path/.ddev/config.yaml" ]] || die "A DDEV project already exists in the directory $wp_path." 15
 	[[ ! -e "$wp_path" ]] || die "$wp_path already exists" 13
 	[[ -d "$directory" && -w "$directory" ]] || die "Cannot create $wp_path" 14
 
