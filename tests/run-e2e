@@ -26,17 +26,18 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/e2e.bash"
 # Usage: finish
 # Destroys what the run left, removes the run directory and exits with the
 # run's status, or with 1 if something could not be removed. A second Ctrl-C
-# must not stop the cleanup halfway, so it is ignored from here on.
+# must not stop the cleanup halfway, so it is ignored from here on. The status
+# is not kept in a variable named status, which run_mkwp sets.
 finish() {
 
-	local status=$?
+	local run_status=$?
 	trap '' INT TERM HUP
 
 	destroy_sites
-	report_leftovers || status=1
+	report_leftovers || run_status=1
 	rm -rf "$run_dir"
 
-	exit "$status"
+	exit "$run_status"
 
 }
 
