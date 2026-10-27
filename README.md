@@ -278,26 +278,33 @@ BLUEPRINT
 
 	database
 		An object with a database to start the site from: a dump of
-		another WordPress site in dump, and the database server to
-		import it into in server. The dump is plain SQL in a .sql file
-		or gzip-compressed SQL in a .sql.gz file, and its tables must
-		have the prefix wp_. A relative path is relative to the
-		blueprint's directory. The server is given as
+		another WordPress site in dump or a DDEV snapshot of one in
+		snapshot, but not both, and the database server to import or
+		restore it into in server. Its tables must have the prefix
+		wp_. A relative path is relative to the blueprint's
+		directory.
+
+		The dump is plain SQL in a .sql file or gzip-compressed SQL
+		in a .sql.gz file. The snapshot is a file that ddev snapshot
+		made, in any directory, with the name DDEV gave it, which
+		ends with the server it was taken from, as in
+		site-mariadb_11.8.zst. The server is given as
 		mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with
-		a version that DDEV has. If it's omitted, DDEV's default is
-		used.
+		a version that DDEV has. With a snapshot, it's required, and
+		must be the server the snapshot was taken from. With a dump,
+		DDEV's default is used if it's omitted.
 
 		The site keeps the users, settings and active theme and
-		plugins of the dump, but for what is given explicitly: the
-		themes and plugins with "activate": true and the theme given
-		with -T are activated, and a title and a language given
-		replace those of the dump. What mkwp gives a new site by
+		plugins of the database, but for what is given explicitly:
+		the themes and plugins with "activate": true and the theme
+		given with -T are activated, and a title and a language given
+		replace those of the database. What mkwp gives a new site by
 		default, such as a title made from NAME, pretty permalinks
 		and the timezone of the language, is not applied. The user
 		is made an administrator with the email address and
-		password given, and is created if the dump doesn't have it.
-		A dump can hold secrets, such as licence keys and API
-		credentials, which mkwp doesn't remove.
+		password given, and is created if the database doesn't have
+		it. A dump or a snapshot can hold secrets, such as licence
+		keys and API credentials, which mkwp doesn't remove.
 
 	wp_cli
 		An array of WP-CLI commands, which are run in the given order at
@@ -342,11 +349,12 @@ BLUEPRINT
 		- WordPress is downloaded and installed.
 		- The themes, plugins and mu-plugins are installed.
 		- The files are copied into wp-content.
-		- The dump is imported, if there is one. The old address is
-		  replaced by the site's, also where it's JSON-escaped, the
-		  database is upgraded, the user is made an administrator,
-		  the title and language given are applied, and the rewrite
-		  rules and the object cache are flushed.
+		- The dump is imported, or the snapshot restored, if there
+		  is one. The old address is replaced by the site's, also
+		  where it's JSON-escaped, the database is upgraded, the
+		  user is made an administrator, the title and language
+		  given are applied, and the rewrite rules and the object
+		  cache are flushed.
 		- The theme to activate, and the plugins with
 		  "activate": true, are activated.
 		- Redis is enabled as object cache, if it is used.
@@ -368,9 +376,9 @@ A relative path in a blueprint is relative to the blueprint's own directory, so 
 
 To build every site from a blueprint of yours unless you say otherwise, name it in `~/.mkwp`, as in `blueprint = ~/blueprints/default.json`. A blueprint named in a configuration file given with `-c`, such as one for a client, is used instead, and a blueprint given with `--blueprint` is used before either. `--no-blueprint` builds a plain site. The configuration files hold only your personal settings and that blueprint; everything that describes the site belongs in the blueprint. See CONFIGURATION in the usage above.
 
-A blueprint's `database` starts the site from a dump of another site, with all the settings and content that site has. Only a dump whose tables have the prefix `wp_` can be used.
+A blueprint's `database` starts the site from a dump or a DDEV snapshot of another site, with all the settings and content that site has. Only a database whose tables have the prefix `wp_` can be used. A snapshot is a file that `ddev snapshot` writes into a site's `.ddev/db_snapshots`. Copy it next to the blueprint, or anywhere else, but keep the name DDEV gave it: DDEV reads the server a snapshot was taken from in its name, as in `site-mariadb_11.8.zst`, and restores it only into that server, so the blueprint must name the same server in `server`.
 
-**A dump can contain secrets.** Plugins keep licence keys, API credentials and similar secrets in the database, and a dump holds them as they are. mkwp copies a dump into the new site without sanitizing it. Keep dumps only where those secrets may be, such as a private repository, and remove what doesn't belong there before you add a dump to a blueprint.
+**A dump or a snapshot can contain secrets.** Plugins keep licence keys, API credentials and similar secrets in the database, and a dump or a snapshot holds them as they are. A snapshot holds even more: every database on the server it was taken from. mkwp copies a dump or a snapshot into the new site without sanitizing it. Keep dumps and snapshots only where those secrets may be, such as a private repository, and remove what doesn't belong there before you add one to a blueprint.
 
 `blueprint.schema.json` in this repository is a [JSON Schema](https://json-schema.org/) for blueprints. Name it in a blueprint's `$schema` key, as the example does, and an editor such as VS Code checks the blueprint and completes its keys as you write. The schema on `main` follows the latest mkwp. For the schema of a particular version, put its tag in place of `main`, as in `https://raw.githubusercontent.com/Kntnt/mkwp/v2.0.0/blueprint.schema.json`.
 
