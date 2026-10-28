@@ -979,7 +979,8 @@ read_blueprint_database() {
 		taken_from=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}
 	fi
 
-	# In an object, the name must be of the kind its key says
+	# A path must have one of the names, and in an object, the name must be
+	# of the kind that the key says
 	local what
 	case ${key:-$kind} in
 		dump)
