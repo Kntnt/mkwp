@@ -51,6 +51,12 @@ test_rejects_an_invalid_wordpress_version() {
 	assert_nothing_created
 }
 
+test_rejects_an_invalid_database_server() {
+	run_mkwp -m test@example.com --db-server=postgres:16 site
+	assert_rejected 56 'Invalid database server: postgres:16. Give it as mariadb:<version> or mysql:<version>.'
+	assert_nothing_created
+}
+
 # A WordPress version is looked up on WordPress.org after every other option
 # is checked, but before Docker and DDEV are.
 test_rejects_a_wordpress_version_that_no_release_matches() {

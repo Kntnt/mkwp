@@ -17,6 +17,7 @@ readonly title_pattern='^[[:print:]]+$'
 readonly language_pattern='^[[:lower:]]{2}(_[[:upper:]]{2})?$'
 readonly php_pattern='^7\.[0-4]$|^8\.[0-5]$'
 readonly wp_pattern='^[0-9]+(\.[0-9]+){0,2}$'
+readonly db_server_pattern='^(mariadb|mysql):[0-9]+\.[0-9]+$'
 
 # The pattern that the version of a theme or plugin from WordPress.org, and the
 # ref of one from a Git repository, must match in a blueprint: no white space,
@@ -399,6 +400,13 @@ die() {
 	exit "${2:-0}"
 }
 
+# Usage: warn <message>
+# Echoes the <message> as a warning, in yellow, and lets mkwp go on. Unlike
+# die, it echoes the <message> as it is, since it may quote the blueprint.
+warn() {
+	printf '\033[0;33m%s\033[0m\n' "$1" 1>&2
+}
+
 # Usage: extract_argument <variable> <args>...
 # Validates that <args> starts with a short format flag followed by a value
 # (e.g. -V 8.3) or a long format flag with an embedded value (e.g. --php=8.3),
@@ -445,6 +453,7 @@ handle_arguments() {
 			-V | --php=*) extract_argument php "$@"; shift $shift_n ;;
 			-W | --wp=*) extract_argument wp "$@"; shift $shift_n ;;
 			-R | --redis) redis=true; shift ;;
+			--db-server=*) extract_argument db_server "$@"; shift $shift_n ;;
 			-B | --blueprint=*) extract_argument blueprint "$@"; shift $shift_n ;;
 			--no-blueprint) no_blueprint=true; shift ;;
 			--destroy) destroy=true; shift ;;
@@ -559,10 +568,12 @@ handle_blueprint() {
 	# Relative paths in the blueprint are relative to its own directory
 	blueprint_dir=$(cd "$(dirname "$blueprint")" && pwd -P)
 
-	# Read each key the blueprint has. Keys such as note need no reading.
+	# Read each key the blueprint has, in its order, but for the database,
+	# which is read last, since it's checked against the server in the site.
+	# jq sorts stably. Keys such as note need no reading.
 	local key
 	local -a keys
-	read_blueprint keys 'keys_unsorted[]'
+	read_blueprint keys 'keys_unsorted | sort_by(. == "database")[]'
 	for key in "${keys[@]}"; do
 		case $key in
 			site)                          read_blueprint_site ;;
@@ -613,9 +624,8 @@ check_blueprint() {
 	# value's path in the blueprint. A schema is an object with the JSON type
 	# or types the value may have, under type, the keys an object may have,
 	# under props, the keys it must have, under required, the pair of keys of
-	# which it must have exactly one, under one_of, the key it must have along
-	# with another, under requires, as {"<other>": "<key>"}, the schema of the
-	# items in an array, under items, whether an array must have items, under
+	# which it must have exactly one, under one_of, the schema of the items in
+	# an array, under items, whether an array must have items, under
 	# nonempty, and the exit status of every error in the value and inside
 	# it, under status. status is the exit status that a schema around the
 	# value gives, or null. A key whose schema is null is not a known key.
@@ -639,9 +649,6 @@ check_blueprint() {
 				| if $count == 0 then error(52; "has no \($keys | join(" or "))")
 				elif $count > 1 then error(49; "has both \($keys | join(" and ")), but may only have one of them")
 				else empty end ),
-			( . as $object | ($schema.requires // {}) | to_entries[]
-				| select((.key as $key | $object | has($key)) and (.value as $key | $object | has($key) | not))
-				| error(51; "has no \"\(.value)\", which is required with \"\(.key)\"") ),
 			( to_entries[] | .key as $key | .value | check($schema.props[$key]; $path + [$key]; $status) )
 		elif $type == "array" and $schema.nonempty and length == 0 then
 			error(33; "must not be empty")
@@ -662,7 +669,8 @@ check_blueprint() {
 		language: string,
 		php: string,
 		wp: string,
-		redis: boolean
+		redis: boolean,
+		db_server: string
 	}};
 
 	# themes and plugins: each item is a source, or an object with one.
@@ -688,9 +696,10 @@ check_blueprint() {
 		note: note
 	}}};
 
-	# database: a dump to import or a DDEV snapshot to restore, and the database
-	# server to import or restore it into.
-	def database: {type: "object", one_of: ["dump", "snapshot"], requires: {snapshot: "server"}, props: {
+	# database: the path to a dump to import or a DDEV snapshot to restore, or,
+	# as before mkwp 2.1.0, an object with the path in dump or snapshot, and
+	# the database server to import or restore it into.
+	def database: {type: ["string", "object"], one_of: ["dump", "snapshot"], props: {
 		dump: string,
 		snapshot: string,
 		server: string
@@ -745,26 +754,31 @@ read_blueprint() {
 # Usage: read_blueprint_site
 # Reads the site settings in the blueprint. Each is checked against the
 # pattern of the option with the same name, and is used unless the option is
-# given on the command line.
+# given on the command line. An invalid value stops mkwp with the exit status
+# 33, but an invalid database server with 46, as one in .database.server does.
+# The database server is also kept in site_db_server, since a database must
+# agree with it even when the option replaces it.
 read_blueprint_site() {
 
 	local -a settings
 	read_blueprint settings '.site | to_entries[] | .key, .value'
 
-	local i key value pattern what
+	local i key value pattern what status
 	for (( i = 0; i < ${#settings[@]}; i += 2 )); do
 
 		key=${settings[i]}
 		value=${settings[i + 1]}
 
+		status=33
 		case $key in
-			title)    pattern=$title_pattern what='title' ;;
-			language) pattern=$language_pattern what='language code' ;;
-			php)      pattern=$php_pattern what='PHP version' ;;
-			wp)       pattern=$wp_pattern what='WordPress version' ;;
-			redis)    pattern='^(true|false)$' what='setting for Redis' ;;
+			title)     pattern=$title_pattern what='title' ;;
+			language)  pattern=$language_pattern what='language code' ;;
+			php)       pattern=$php_pattern what='PHP version' ;;
+			wp)        pattern=$wp_pattern what='WordPress version' ;;
+			redis)     pattern='^(true|false)$' what='setting for Redis' ;;
+			db_server) pattern=$db_server_pattern what='MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>' status=46 site_db_server=$value ;;
 		esac
-		[[ $value =~ $pattern ]] || invalid_blueprint "\"$value\" in .site.$key is not a valid $what" 33
+		[[ $value =~ $pattern ]] || invalid_blueprint "\"$value\" in .site.$key is not a valid $what" "$status"
 
 		# An option given on the command line takes precedence
 		if [[ -z ${!key} ]]; then
@@ -910,43 +924,72 @@ read_blueprint_files() {
 }
 
 # Usage: read_blueprint_database
-# Reads the database in the blueprint: the dump to import, which must be plain
-# or gzip-compressed SQL, or the DDEV snapshot to restore, and the database
-# server to import or restore it into, which a snapshot must have. Sets
-# database_kind to dump or snapshot, database_file to the file, and
-# database_server to the server, if one is given. DDEV takes any file whose
-# name ends in .gz for compressed SQL, and imports a file it can't decompress
-# as it is, so the name of a dump must end in .sql or .sql.gz. DDEV reads the
-# server a snapshot was taken from in the end of its name, and restores it
-# only into that server, so the name must have it, and it must be the given
-# server. Which versions of a server DDEV has depends on the version of DDEV,
-# so only the form of the server is checked here, and DDEV checks the version.
+# Reads the database in the blueprint, which is the path to a dump to import,
+# or to a DDEV snapshot to restore, and tells which by its name. It's read
+# after the site, since a server given there must agree with it. Sets
+# database_kind to dump or snapshot, database_file to the file,
+# snapshot_server to the server a snapshot was taken from, and db_server to
+# the server to import or restore it into, unless it's given on the command
+# line. DDEV takes any file whose name ends in .gz for compressed SQL, and
+# imports a file it can't decompress as it is, so the name of a dump must end
+# in .sql or .sql.gz. DDEV reads the server a snapshot was taken from in the
+# end of its name, and restores it only into that server, so the name must
+# have it, and a server given in the blueprint must be that one. One given
+# with --db-server is checked along with the other options. Which versions of
+# a server DDEV has depends on the version of DDEV, so only the form of a
+# server is checked, and DDEV checks the version. Before mkwp 2.1.0, the
+# database was an object with the path in dump or snapshot, and the server in
+# server, which counts as the one in the site. It still works, with a warning.
 read_blueprint_database() {
 
-	# The database has exactly one of dump and snapshot
+	# The path, as it is and as JSON, and in an object, the key that holds it
+	# and the server, if one is given
 	local -a fields
-	read_blueprint fields '.database | (if has("dump") then "dump" else "snapshot" end), (.dump // .snapshot), (.server | values)'
-	database_kind=${fields[0]}
-	local file=${fields[1]} where=.database.${fields[0]}
+	read_blueprint fields '.database | if type == "string" then {path: .} else {path: (.dump // .snapshot), key: (if has("dump") then "dump" else "snapshot" end), server} end | .path, (.path | tojson), .key // "", (.server | values)'
+	local file=${fields[0]} json=${fields[1]} key=${fields[2]} where=.database${fields[2]:+.${fields[2]}}
 
-	if (( ${#fields[@]} > 2 )); then
-		[[ ${fields[2]} =~ ^(mariadb|mysql):[0-9]+\.[0-9]+$ ]] || invalid_blueprint "\"${fields[2]}\" in .database.server is not a MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>" 46
-		database_server=${fields[2]}
+	# The server in the object counts as the one in the site, so if both are
+	# given, they must be the same
+	local server=$site_db_server named_in=.site.db_server object_server=${fields[3]:-}
+	if (( ${#fields[@]} > 3 )); then
+		[[ $object_server =~ $db_server_pattern ]] || invalid_blueprint "\"$object_server\" in .database.server is not a valid MariaDB or MySQL server, given as mariadb:<version> or mysql:<version>" 46
+		[[ -z $server || $server == "$object_server" ]] || invalid_blueprint "\"$object_server\" in .database.server is not \"$server\" in .site.db_server. Give the server only in .site.db_server." 55
+		if [[ -z $server ]]; then
+			server=$object_server named_in=.database.server
+		fi
 	fi
 
-	local what taken_from
-	case $database_kind in
+	# The name tells a dump from a snapshot
+	local kind='' taken_from=''
+	if [[ $file == *.sql || $file == *.sql.gz ]]; then
+		kind=dump
+	elif [[ ${file##*/} =~ (mariadb|mysql)_([0-9.]+)\.(zst|gz|mbstream|xbstream)$ ]]; then
+		kind=snapshot
+		taken_from=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}
+	fi
+
+	# In an object, the name must be of the kind its key says
+	local what
+	case ${key:-$kind} in
 		dump)
 			what='.sql or .sql.gz file'
-			[[ $file == *.sql || $file == *.sql.gz ]] || invalid_blueprint "\"$file\" in $where is not a $what" 35
+			[[ $kind == dump ]] || invalid_blueprint "\"$file\" in $where is not a $what" 35
 			;;
 		snapshot)
 			what='DDEV snapshot'
-			[[ ${file##*/} =~ (mariadb|mysql)_([0-9.]+)\.(zst|gz|mbstream|xbstream)$ ]] || invalid_blueprint "\"$file\" in $where is not a DDEV snapshot, whose name ends with the server it was taken from, as in site-mariadb_11.8.zst" 35
-			taken_from=${BASH_REMATCH[1]}:${BASH_REMATCH[2]}
-			[[ $taken_from == "$database_server" ]] || invalid_blueprint "\"$file\" in $where was taken from $taken_from, not from $database_server in .database.server. A snapshot can only be restored into the server it was taken from." 50
+			[[ $kind == snapshot ]] || invalid_blueprint "\"$file\" in $where is not a DDEV snapshot, whose name ends with the server it was taken from, as in site-mariadb_11.8.zst" 35
+			[[ -z $server || $server == "$taken_from" ]] || invalid_blueprint "\"$file\" in $where was taken from $taken_from, not from $server in $named_in. A snapshot can only be restored into the server it was taken from." 50
+			snapshot_server=$taken_from
+			;;
+		*)
+			invalid_blueprint "\"$file\" in $where is neither a dump, whose name ends with .sql or .sql.gz, nor a DDEV snapshot, whose name ends with the server it was taken from, as in site-mariadb_11.8.zst" 35
 			;;
 	esac
+	database_kind=$kind
+
+	# The server given on the command line, or else in the blueprint, is
+	# used, or else the one a snapshot was taken from
+	db_server=${db_server:-${server:-$taken_from}}
 
 	local path
 	path=$(blueprint_path "$file")
@@ -954,6 +997,15 @@ read_blueprint_database() {
 
 	# Keep the path without parts such as ./, since messages show it
 	database_file=$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")
+
+	# The object still works, but mkwp 3.0.0 won't accept it
+	if [[ $key ]]; then
+		local advice="Use \"database\": $json instead"
+		if [[ $object_server ]]; then
+			advice+=", and put the server in .site.db_server, as in \"site\": {\"db_server\": \"$object_server\"}"
+		fi
+		warn "The object form of .database in the blueprint $blueprint is deprecated, and mkwp 3.0.0 won't accept it. $advice."
+	fi
 
 }
 
@@ -1649,6 +1701,7 @@ main() {
 	php=
 	wp=
 	redis=
+	db_server=
 	blueprint=
 	no_blueprint=
 	destroy=
@@ -1685,12 +1738,16 @@ main() {
 	# to copy them to, in arrays with the same indices. See copy_files.
 	copy_sources=() copy_targets=()
 
+	# The database server in the blueprint's site, which a database must agree
+	# with. See read_blueprint_site.
+	site_db_server=
+
 	# The kind of database to start from, if any, which is a dump to import
-	# or a DDEV snapshot to restore, its file, and the database server to
-	# import or restore it into, if one is given. See read_blueprint_database.
+	# or a DDEV snapshot to restore, its file, and the database server a
+	# snapshot was taken from. See read_blueprint_database.
 	database_kind=
 	database_file=
-	database_server=
+	snapshot_server=
 
 	# The WP-CLI commands to run at the end. See read_blueprint_wp_cli.
 	wp_cli_args=()
@@ -1771,6 +1828,7 @@ main() {
 		echo "php=$php"
 		echo "wp=$wp"
 		echo "redis=$redis"
+		echo "db_server=$db_server"
 		echo "blueprint=$blueprint"
 		echo "no_blueprint=$no_blueprint"
 		echo "config=$config"
@@ -1780,7 +1838,7 @@ main() {
 		echo "last_theme_index=$last_theme_index"
 		echo "database_kind=$database_kind"
 		echo "database_file=$database_file"
-		echo "database_server=$database_server"
+		echo "snapshot_server=$snapshot_server"
 		declare -p themes_sources themes_kinds themes_pins \
 			plugins_sources plugins_kinds plugins_pins plugins_to_activate \
 			mu_plugins_sources mu_plugins_kinds mu_plugins_pins \
@@ -1799,6 +1857,8 @@ main() {
 	[[ "$language" =~ $language_pattern ]] || die "Invalid language code: $language" 8
 	[[ "$php" =~ $php_pattern ]] || die "Invalid PHP version: $php" 9
 	[[ -z "$wp" || "$wp" =~ $wp_pattern ]] || die "Invalid WordPress version: $wp" 17
+	[[ -z "$db_server" || "$db_server" =~ $db_server_pattern ]] || die "Invalid database server: $db_server. Give it as mariadb:<version> or mysql:<version>." 56
+	[[ -z "$snapshot_server" || "$db_server" == "$snapshot_server" ]] || die "The snapshot $database_file was taken from $snapshot_server, not from $db_server given with --db-server. A snapshot can only be restored into the server it was taken from." 50
 	[[ ! -e "$wp_path/.ddev/config.yaml" ]] || die "A DDEV project already exists in the directory $wp_path." 15
 	[[ ! -e "$wp_path" ]] || die "$wp_path already exists" 13
 	[[ -d "$directory" && -w "$directory" ]] || die "Cannot create $wp_path" 14
@@ -1832,7 +1892,7 @@ main() {
 	# Configure the project before the first start, so that all customizations
 	# below — PHP settings, host commands, cron and the optional Redis service
 	# — are baked into the containers in a single start with no restart needed.
-	ddev config --project-name="$name" --project-type=wordpress --disable-settings-management --php-version="$php" --performance-mode=mutagen ${database_server:+"--database=$database_server"}
+	ddev config --project-name="$name" --project-type=wordpress --disable-settings-management --php-version="$php" --performance-mode=mutagen ${db_server:+"--database=$db_server"}
 
 	# Create local php.ini with infinite timeout. Don't use on production!
 	mkdir -p .ddev/php
