@@ -40,6 +40,10 @@
 				"redis": {
 					"description": "Whether to use Redis as object cache, as with -R/--redis.",
 					"type": "boolean"
+				},
+				"db_server": {
+					"description": "The database server, as with --db-server. With a snapshot, it must be the server the snapshot was taken from. If it's omitted, DDEV's default server is used, or, with a snapshot, the server it was taken from.",
+					"$ref": "#/$defs/db_server"
 				}
 			}
 		},
@@ -97,43 +101,48 @@
 			}
 		},
 		"database": {
-			"description": "A database to start the site from: a dump or a DDEV snapshot of another WordPress site, whose tables have the prefix wp_. It has exactly one of dump and snapshot. The site keeps the users, settings and active theme and plugins of the database, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the database, the language pack of the database's language is installed if no language is given, and themes and plugins with \"activate\": true are activated. A dump or a snapshot can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
-			"type": "object",
-			"additionalProperties": false,
+			"description": "A database to start the site from: the path to a dump or a DDEV snapshot of another WordPress site, whose tables have the prefix wp_. The site keeps the users, settings and active theme and plugins of the database, but its old address is replaced by the site's, the database is upgraded, mkwp's user is made an administrator, a title and language given explicitly replace those of the database, the language pack of the database's language is installed if no language is given, and themes and plugins with \"activate\": true are activated. A dump or a snapshot can hold secrets, such as licence keys and API credentials, which mkwp doesn't remove.",
 			"oneOf": [
 				{
-					"required": [
-						"dump"
-					]
+					"description": "The path to the dump or the snapshot, which mkwp tells apart by the name. A dump is plain SQL in a .sql file, or gzip-compressed SQL in a .sql.gz file. A snapshot is a file made by ddev snapshot, such as one in a site's .ddev/db_snapshots, with the name DDEV gave it, which ends with the server it was taken from, as in site-mariadb_11.8.zst. It's restored into that server, and can be anywhere. A relative path is relative to the blueprint's directory, and ~/ is the home directory.",
+					"type": "string",
+					"pattern": "\\.sql(\\.gz)?$|(mariadb|mysql)_[0-9.]+\\.(zst|gz|mbstream|xbstream)$"
 				},
 				{
-					"required": [
-						"snapshot"
-					]
+					"description": "Deprecated, and not accepted by mkwp 3.0.0: an object with the path to the dump in dump or to the snapshot in snapshot, and the server in server. Give the path alone as database instead, and the server as db_server in site.",
+					"deprecated": true,
+					"type": "object",
+					"additionalProperties": false,
+					"oneOf": [
+						{
+							"required": [
+								"dump"
+							]
+						},
+						{
+							"required": [
+								"snapshot"
+							]
+						}
+					],
+					"properties": {
+						"dump": {
+							"description": "The dump: plain SQL in a .sql file, or gzip-compressed SQL in a .sql.gz file. A relative path is relative to the blueprint's directory, and ~/ is the home directory.",
+							"type": "string",
+							"pattern": "\\.sql(\\.gz)?$"
+						},
+						"snapshot": {
+							"description": "The snapshot: a file made by ddev snapshot, such as one in a site's .ddev/db_snapshots, with the name DDEV gave it, which ends with the server it was taken from, as in site-mariadb_11.8.zst. It can be anywhere. A relative path is relative to the blueprint's directory, and ~/ is the home directory.",
+							"type": "string",
+							"pattern": "(mariadb|mysql)_[0-9.]+\\.(zst|gz|mbstream|xbstream)$"
+						},
+						"server": {
+							"description": "The database server, which counts as db_server in site, and must be the same if both are given.",
+							"$ref": "#/$defs/db_server"
+						}
+					}
 				}
-			],
-			"dependentRequired": {
-				"snapshot": [
-					"server"
-				]
-			},
-			"properties": {
-				"dump": {
-					"description": "The dump: plain SQL in a .sql file, or gzip-compressed SQL in a .sql.gz file. A relative path is relative to the blueprint's directory, and ~/ is the home directory.",
-					"type": "string",
-					"pattern": "\\.sql(\\.gz)?$"
-				},
-				"snapshot": {
-					"description": "The snapshot: a file made by ddev snapshot, such as one in a site's .ddev/db_snapshots, with the name DDEV gave it, which ends with the server it was taken from, as in site-mariadb_11.8.zst. It can be anywhere. A relative path is relative to the blueprint's directory, and ~/ is the home directory. It needs server.",
-					"type": "string",
-					"pattern": "(mariadb|mysql)_[0-9.]+\\.(zst|gz|mbstream|xbstream)$"
-				},
-				"server": {
-					"description": "The database server to import the dump into, or to restore the snapshot into, as mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with a version that DDEV has. With a snapshot, it's required, and must be the server the snapshot was taken from. With a dump, DDEV's default server is used if it's omitted.",
-					"type": "string",
-					"pattern": "^(mariadb|mysql):[0-9]+\\.[0-9]+$"
-				}
-			}
+			]
 		},
 		"wp_cli": {
 			"description": "WP-CLI commands to run, in the given order, at the end of the build: after Redis is enabled and before the site is opened. If a command fails, mkwp stops without opening the site.",
@@ -152,6 +161,11 @@
 		"note": {
 			"description": "A note of your own, since JSON has no comments. mkwp ignores it.",
 			"type": "string"
+		},
+		"db_server": {
+			"description": "A database server, as mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with a version that DDEV has.",
+			"type": "string",
+			"pattern": "^(mariadb|mysql):[0-9]+\\.[0-9]+$"
 		},
 		"item": {
 			"description": "A theme or plugin: its source, or an object with its source.",
