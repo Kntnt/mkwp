@@ -6,6 +6,8 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.1.0] – 2026-10-28
+
 ### Added
 
 - A blueprint's `database` can be the path to a dump or a DDEV snapshot, as in `"database": "./site.sql.gz"`, and mkwp tells which it is by its name: a name that ends with `.sql` or `.sql.gz` is a dump, and a name that ends with the server it was taken from, as DDEV gives it, such as `site-mariadb_11.8.zst`, is a snapshot. Any other name stops mkwp before it touches Docker and DDEV, with a message that names both.
@@ -163,7 +165,8 @@ uses [Semantic Versioning](https://semver.org/).
   required argument, every help line fits within 79 columns, and several
   spelling errors in the help text were corrected.
 
-[Unreleased]: https://github.com/Kntnt/mkwp/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/Kntnt/mkwp/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Kntnt/mkwp/releases/tag/v2.1.0
 [2.0.0]: https://github.com/Kntnt/mkwp/releases/tag/v2.0.0
 [1.9.0]: https://github.com/Kntnt/mkwp/releases/tag/v1.9.0
 [1.8.2]: https://github.com/Kntnt/mkwp/releases/tag/v1.8.2
