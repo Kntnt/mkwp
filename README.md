@@ -39,14 +39,15 @@ DESCRIPTION
 	below.
 
 	An option given on the command line always takes precedence. If a
-	site setting (title, language, PHP or WordPress version, or Redis)
-	is not given there, it is in the first place set to the value in the
-	blueprint, if there is one and it has the setting, and in the second
-	place to a default value. If a personal setting (email, user,
-	password or directory) is not given there, it is in the first place
-	set to the value in the configuration file specified with -c or
-	--config, in the second place to the value in the configuration
-	file ~/.mkwp, and in the third place to a default value.
+	site setting (title, language, PHP or WordPress version, Redis or
+	database server) is not given there, it is in the first place set to
+	the value in the blueprint, if there is one and it has the setting,
+	and in the second place to a default value. If a personal setting
+	(email, user, password or directory) is not given there, it is in
+	the first place set to the value in the configuration file specified
+	with -c or --config, in the second place to the value in the
+	configuration file ~/.mkwp, and in the third place to a default
+	value.
 
 OPTIONS
 	-t <title>
@@ -131,6 +132,13 @@ OPTIONS
 		object cache backend: the Redis Object Cache plugin is
 		installed and activated, and its object-cache.php drop-in is
 		enabled.
+
+	--db-server=<type>:<version>
+		The database server of the site, given as mariadb:<version> or
+		mysql:<version> (e.g. mariadb:11.8), with a version that DDEV
+		has. If omitted, DDEV's default server is used, or, if the site
+		is started from a snapshot, the server the snapshot was taken
+		from, which is the only one it can be restored into.
 
 	-B <file>
 	--blueprint=<file>
@@ -235,10 +243,11 @@ BLUEPRINT
 		files. mkwp ignores it.
 
 	site
-		An object with the settings of the site: title, language, php
-		and wp, which are strings, and redis, which is true or false.
-		Each is checked like the option with the same name, and is
-		replaced by the option when it's given on the command line.
+		An object with the settings of the site: title, language, php,
+		wp and db_server, which are strings, and redis, which is true
+		or false. Each is checked like the option with the same name,
+		and is replaced by the option when it's given on the command
+		line.
 
 	themes
 	plugins
@@ -286,22 +295,19 @@ BLUEPRINT
 			]
 
 	database
-		An object with a database to start the site from: a dump of
-		another WordPress site in dump or a DDEV snapshot of one in
-		snapshot, but not both, and the database server to import or
-		restore it into in server. Its tables must have the prefix
-		wp_. A relative path is relative to the blueprint's
-		directory.
+		The path to a database to start the site from: a dump of
+		another WordPress site or a DDEV snapshot of one. Its tables
+		must have the prefix wp_. A relative path is relative to the
+		blueprint's directory.
 
-		The dump is plain SQL in a .sql file or gzip-compressed SQL
-		in a .sql.gz file. The snapshot is a file that ddev snapshot
-		made, in any directory, with the name DDEV gave it, which
-		ends with the server it was taken from, as in
-		site-mariadb_11.8.zst. The server is given as
-		mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with
-		a version that DDEV has. With a snapshot, it's required, and
-		must be the server the snapshot was taken from. With a dump,
-		DDEV's default is used if it's omitted.
+		mkwp tells a dump from a snapshot by its name. A dump is plain
+		SQL in a .sql file or gzip-compressed SQL in a .sql.gz file. A
+		snapshot is a file that ddev snapshot made, in any directory,
+		with the name DDEV gave it, which ends with the server it was
+		taken from, as in site-mariadb_11.8.zst. The site gets that
+		server, since a snapshot can only be restored into it, so a
+		db_server in site, or one given with --db-server, must be the
+		same.
 
 		The site keeps the users, settings and active theme and
 		plugins of the database, but for what is given explicitly:
@@ -319,6 +325,11 @@ BLUEPRINT
 		the same email address. A dump or a snapshot can hold
 		secrets, such as licence keys and API credentials, which
 		mkwp doesn't remove.
+
+		Before mkwp 2.1.0, database was an object with the path in
+		dump or snapshot, and the server in server. It still works,
+		with a warning, but mkwp 3.0.0 won't accept it. Give the path
+		as database instead, and the server as db_server in site.
 
 	wp_cli
 		An array of WP-CLI commands, which are run in the given order at
@@ -394,7 +405,7 @@ A relative path in a blueprint is relative to the blueprint's own directory, so 
 
 To build every site from a blueprint of yours unless you say otherwise, name it in `~/.mkwp`, as in `blueprint = ~/blueprints/default.json`. A blueprint named in a configuration file given with `-c`, such as one for a client, is used instead, and a blueprint given with `--blueprint` is used before either. `--no-blueprint` builds a plain site. The configuration files hold only your personal settings and that blueprint; everything that describes the site belongs in the blueprint. See CONFIGURATION in the usage above.
 
-A blueprint's `database` starts the site from a dump or a DDEV snapshot of another site, with all the settings and content that site has. Only a database whose tables have the prefix `wp_` can be used. A snapshot is a file that `ddev snapshot` writes into a site's `.ddev/db_snapshots`. Copy it next to the blueprint, or anywhere else, but keep the name DDEV gave it: DDEV reads the server a snapshot was taken from in its name, as in `site-mariadb_11.8.zst`, and restores it only into that server, so the blueprint must name the same server in `server`.
+A blueprint's `database` is the path to a dump or a DDEV snapshot of another site, as in `"database": "./site.sql.gz"`, and starts the site with all the settings and content that site has. Only a database whose tables have the prefix `wp_` can be used. A snapshot is a file that `ddev snapshot` writes into a site's `.ddev/db_snapshots`. Copy it next to the blueprint, or anywhere else, but keep the name DDEV gave it: mkwp tells a snapshot from a dump by its name, and DDEV reads the server the snapshot was taken from in it, as in `site-mariadb_11.8.zst`, and restores it only into that server. mkwp gives the site that server, so a blueprint needs no server for a snapshot, and a `db_server` in its `site`, or a server given with `--db-server`, must be the same.
 
 **A dump or a snapshot can contain secrets.** Plugins keep licence keys, API credentials and similar secrets in the database, and a dump or a snapshot holds them as they are. A snapshot holds even more: every database on the server it was taken from. mkwp copies a dump or a snapshot into the new site without sanitizing it. Keep dumps and snapshots only where those secrets may be, such as a private repository, and remove what doesn't belong there before you add one to a blueprint.
 

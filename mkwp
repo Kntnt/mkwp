@@ -45,14 +45,15 @@ help() {
 	below.
 
 	An option given on the command line always takes precedence. If a
-	site setting (title, language, PHP or WordPress version, or Redis)
-	is not given there, it is in the first place set to the value in the
-	blueprint, if there is one and it has the setting, and in the second
-	place to a default value. If a personal setting (email, user,
-	password or directory) is not given there, it is in the first place
-	set to the value in the configuration file specified with \e[1m-c\e[0m or
-	\e[1m--config\e[0m, in the second place to the value in the configuration
-	file \e[1m~/.mkwp\e[0m, and in the third place to a default value.
+	site setting (title, language, PHP or WordPress version, Redis or
+	database server) is not given there, it is in the first place set to
+	the value in the blueprint, if there is one and it has the setting,
+	and in the second place to a default value. If a personal setting
+	(email, user, password or directory) is not given there, it is in
+	the first place set to the value in the configuration file specified
+	with \e[1m-c\e[0m or \e[1m--config\e[0m, in the second place to the value in the
+	configuration file \e[1m~/.mkwp\e[0m, and in the third place to a default
+	value.
 
 \e[1mOPTIONS\e[0m
 	\e[1m-t <title>\e[0m
@@ -137,6 +138,13 @@ help() {
 		object cache backend: the Redis Object Cache plugin is
 		installed and activated, and its object-cache.php drop-in is
 		enabled.
+
+	\e[1m--db-server=<type>:<version>\e[0m
+		The database server of the site, given as mariadb:<version> or
+		mysql:<version> (e.g. mariadb:11.8), with a version that DDEV
+		has. If omitted, DDEV's default server is used, or, if the site
+		is started from a snapshot, the server the snapshot was taken
+		from, which is the only one it can be restored into.
 
 	\e[1m-B <file>\e[0m
 	\e[1m--blueprint=<file>\e[0m
@@ -241,10 +249,11 @@ help() {
 		\e[1mfiles\e[0m. mkwp ignores it.
 
 	\e[1msite\e[0m
-		An object with the settings of the site: \e[1mtitle\e[0m, \e[1mlanguage\e[0m, \e[1mphp\e[0m
-		and \e[1mwp\e[0m, which are strings, and \e[1mredis\e[0m, which is true or false.
-		Each is checked like the option with the same name, and is
-		replaced by the option when it's given on the command line.
+		An object with the settings of the site: \e[1mtitle\e[0m, \e[1mlanguage\e[0m, \e[1mphp\e[0m,
+		\e[1mwp\e[0m and \e[1mdb_server\e[0m, which are strings, and \e[1mredis\e[0m, which is true
+		or false. Each is checked like the option with the same name,
+		and is replaced by the option when it's given on the command
+		line.
 
 	\e[1mthemes\e[0m
 	\e[1mplugins\e[0m
@@ -292,22 +301,19 @@ help() {
 			]
 
 	\e[1mdatabase\e[0m
-		An object with a database to start the site from: a dump of
-		another WordPress site in \e[1mdump\e[0m or a DDEV snapshot of one in
-		\e[1msnapshot\e[0m, but not both, and the database server to import or
-		restore it into in \e[1mserver\e[0m. Its tables must have the prefix
-		wp_. A relative path is relative to the blueprint's
-		directory.
+		The path to a database to start the site from: a dump of
+		another WordPress site or a DDEV snapshot of one. Its tables
+		must have the prefix wp_. A relative path is relative to the
+		blueprint's directory.
 
-		The dump is plain SQL in a .sql file or gzip-compressed SQL
-		in a .sql.gz file. The snapshot is a file that ddev snapshot
-		made, in any directory, with the name DDEV gave it, which
-		ends with the server it was taken from, as in
-		site-mariadb_11.8.zst. The server is given as
-		mariadb:<version> or mysql:<version>, e.g. mariadb:11.8, with
-		a version that DDEV has. With a snapshot, it's required, and
-		must be the server the snapshot was taken from. With a dump,
-		DDEV's default is used if it's omitted.
+		mkwp tells a dump from a snapshot by its name. A dump is plain
+		SQL in a .sql file or gzip-compressed SQL in a .sql.gz file. A
+		snapshot is a file that ddev snapshot made, in any directory,
+		with the name DDEV gave it, which ends with the server it was
+		taken from, as in site-mariadb_11.8.zst. The site gets that
+		server, since a snapshot can only be restored into it, so a
+		\e[1mdb_server\e[0m in \e[1msite\e[0m, or one given with \e[1m--db-server\e[0m, must be the
+		same.
 
 		The site keeps the users, settings and active theme and
 		plugins of the database, but for what is given explicitly:
@@ -325,6 +331,11 @@ help() {
 		the same email address. A dump or a snapshot can hold
 		secrets, such as licence keys and API credentials, which
 		mkwp doesn't remove.
+
+		Before mkwp 2.1.0, \e[1mdatabase\e[0m was an object with the path in
+		\e[1mdump\e[0m or \e[1msnapshot\e[0m, and the server in \e[1mserver\e[0m. It still works,
+		with a warning, but mkwp 3.0.0 won't accept it. Give the path
+		as \e[1mdatabase\e[0m instead, and the server as \e[1mdb_server\e[0m in \e[1msite\e[0m.
 
 	\e[1mwp_cli\e[0m
 		An array of WP-CLI commands, which are run in the given order at

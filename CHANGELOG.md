@@ -6,6 +6,19 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A blueprint's `database` can be the path to a dump or a DDEV snapshot, as in `"database": "./site.sql.gz"`, and mkwp tells which it is by its name: a name that ends with `.sql` or `.sql.gz` is a dump, and a name that ends with the server it was taken from, as DDEV gives it, such as `site-mariadb_11.8.zst`, is a snapshot. Any other name stops mkwp before it touches Docker and DDEV, with a message that names both.
+- A blueprint's `site.db_server` sets the database server of the site, such as `mariadb:11.8`, with or without a database, and so does the new `--db-server` option, which replaces it, as the other options replace their `site` keys. A site without a database couldn't get a server of its own before. An invalid server stops mkwp before it touches Docker and DDEV, with the exit status 46 in a blueprint, and the new status 56 on the command line.
+
+### Changed
+
+- A snapshot needs no server, since its name has it. The site gets the server the snapshot was taken from, and a `site.db_server` or `--db-server` that names another stops mkwp before it touches Docker and DDEV. `server` is optional with a snapshot in a `database` object too, so the exit status 51 is no longer used.
+
+### Deprecated
+
+- A blueprint's `database` as an object, with the path in `dump` or `snapshot` and the server in `server`, still works, with a warning, but will be removed in 3.0.0. Its `server` counts as `site.db_server`, and if both are given and differ, mkwp stops with the new exit status 55. Move the path to `database` and the server to `site.db_server`, so `"database": {"dump": "./site.sql.gz", "server": "mariadb:11.8"}` becomes `"database": "./site.sql.gz"` and `"site": {"db_server": "mariadb:11.8"}`.
+
 ## [2.0.0] – 2026-10-28
 
 ### Added
