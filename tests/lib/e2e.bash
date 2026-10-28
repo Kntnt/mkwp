@@ -121,6 +121,13 @@ site_wp() {
 
 }
 
+# Usage: site_db_server <label>
+# Echoes the database server of the site <label>, as <type>:<version>, the way
+# DDEV describes it.
+site_db_server() {
+	(cd "$sites_dir/$(site_name "$1")" && ddev describe -j) | jq -r '.raw.database_type + ":" + .raw.database_version'
+}
+
 # Usage: without_php_deprecations
 # Copies stdin to stdout without PHP's deprecation notices. Under PHP 8.5, the
 # WP-CLI that DDEV ships prints them to stdout, each after an empty line, ahead

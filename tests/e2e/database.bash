@@ -4,17 +4,20 @@
 # first, a local zip file for each plugin, of which one is marked to be
 # activated, two plugins from a local bare Git repository reached through a
 # file:// URL, one at the latest tag and one at an older tag given as ref, an
-# mu-plugin from a local PHP file, and a file copied into uploads. Its WP-CLI
-# commands change it the way a user would change a site: it gets another user,
-# a language of its own in the database, a timezone that isn't the one of its
+# mu-plugin from a local PHP file, and a file copied into uploads. It has a
+# database server of its own, which isn't DDEV's default. Its WP-CLI commands
+# change it the way a user would change a site: it gets another user, a
+# language of its own in the database, a timezone that isn't the one of its
 # language, another permalink structure, and its address in JSON. Its
 # database is then taken, as a dump and as a DDEV snapshot, and other sites
 # are built from it.
 #
 # Each site in from_a is built by make_site_from_a, from the same blueprint
-# but for the database, and with the same options. The tests that loop over
-# from_a check each of them in the same way, whatever way the database got
-# there. Site defaults is built from A's dump with nothing given explicitly.
+# but for the path to the database, and with the same options. The tests that
+# loop over from_a check each of them in the same way, whatever way the
+# database got there. Site defaults is built from A's dump with nothing given
+# explicitly, and with the database as an object, as before mkwp 2.1.0, which
+# still works.
 
 fixtures="$run_dir/fixtures/database"
 
@@ -34,6 +37,9 @@ new_email='new@example.com'
 
 # The timezone of site A, which mkwp doesn't give a site of any language.
 a_timezone='Atlantic/Azores'
+
+# The database server of site A, which isn't DDEV's default.
+a_db_server='mariadb:11.4'
 
 setup_file() {
 
@@ -57,7 +63,7 @@ setup_file() {
 	# their database has to be upgraded.
 	cat > "$fixtures/a.json" <<- EOT
 	{
-		"site": {"title": "Site A", "language": "sv_SE", "php": "8.4", "wp": "6.8"},
+		"site": {"title": "Site A", "language": "sv_SE", "php": "8.4", "wp": "6.8", "db_server": "$a_db_server"},
 		"themes": [{"source": "./themes/mkwp-theme-two", "activate": true}, "./themes/mkwp-theme-one"],
 		"plugins": [
 			{"source": "./mkwp-active.zip", "activate": true},
@@ -82,19 +88,19 @@ setup_file() {
 	a_dir="$sites_dir/$(site_name a)"
 	(cd "$a_dir" && ddev export-db --file="$fixtures/a.sql.gz")
 
-	# A snapshot of site A, which has DDEV's default server, since its
-	# blueprint has no database. DDEV names the snapshot after the server.
-	local snapshots server
+	# A snapshot of site A, which DDEV names after A's server, so the sites
+	# built from it need no server.
+	local snapshots
 	(cd "$a_dir" && ddev snapshot --name=a)
 	snapshots=("$a_dir"/.ddev/db_snapshots/a-*)
 	cp "${snapshots[0]}" "$fixtures/"
-	server=$(cd "$a_dir" && ddev describe -j | jq -r '.raw.database_type + ":" + .raw.database_version')
 
-	make_site_from_a dump '{"dump": "./a.sql.gz", "server": "mariadb:11.4"}'
-	make_site_from_a snapshot "{\"snapshot\": \"./${snapshots[0]##*/}\", \"server\": \"$server\"}"
+	make_site_from_a dump '"./a.sql.gz"'
+	make_site_from_a snapshot "\"./${snapshots[0]##*/}\""
 
 	# Site defaults, with neither a title nor a language given, and with a
-	# user who is not in A's database. Its blueprint marks a theme.
+	# user who is not in A's database. Its blueprint marks a theme, and gives
+	# the database as an object.
 	cat > "$fixtures/defaults.json" <<- 'EOT'
 	{
 		"themes": ["./themes/mkwp-theme-two", {"source": "./themes/mkwp-theme-one", "activate": true}],
@@ -106,7 +112,7 @@ setup_file() {
 }
 
 # Usage: make_site_from_a <label> <database>
-# Builds the site <label> from a blueprint with the JSON object <database> as
+# Builds the site <label> from a blueprint with the JSON string <database> as
 # its database, and with the editor of site A as mkwp's user. The blueprint
 # gives a title and a language, and lists A's themes and its zipped plugins
 # without marks, but for the plugin that is inactive in A. The theme listed
@@ -267,17 +273,19 @@ test_upgrades_the_database_to_the_version_of_wordpress() {
 
 }
 
-test_uses_the_database_server_of_the_blueprint() {
-	local site server
-	for site in "${from_a[@]}"; do
-		server=$(jq -r .database.server "$fixtures/$site.json")
-		assert_site_equal "$site" "$server" "$(cd "$sites_dir/$(site_name "$site")" && ddev describe -j | jq -r '.raw.database_type + ":" + .raw.database_version')"
-	done
+test_gives_site_a_the_database_server_of_its_blueprint() {
+	assert_equal "$a_db_server" "$(site_db_server a)"
+}
+
+# The blueprint names no server, so the one the snapshot was taken from is
+# used, which is A's, and not DDEV's default.
+test_restores_a_snapshot_into_the_server_it_was_taken_from() {
+	assert_equal "$a_db_server" "$(site_db_server snapshot)"
 }
 
 test_stops_at_a_dump_with_another_table_prefix() {
 	gunzip -c "$fixtures/a.sql.gz" | sed 's/`wp_/`xyz_/g' | gzip > "$fixtures/xyz.sql.gz"
-	echo '{"database": {"dump": "./xyz.sql.gz"}}' > "$fixtures/xyz.json"
+	echo '{"database": "./xyz.sql.gz"}' > "$fixtures/xyz.json"
 	try_site xyz -B "$fixtures/xyz.json"
 	assert_stopped_with 47 "The database from $fixtures/xyz.sql.gz is not a WordPress site with the table prefix wp_, which is the only prefix mkwp supports."
 }

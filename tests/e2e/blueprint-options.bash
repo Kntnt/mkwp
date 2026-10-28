@@ -1,8 +1,12 @@
 # A site built from a blueprint and from options on the command line, which
 # take precedence over the blueprint. A relative path given with -P is relative
-# to the directory mkwp is run from.
+# to the directory mkwp is run from. The blueprint names one database server,
+# and the option another.
 
 fixtures="$run_dir/fixtures/blueprint-options"
+
+# The database server given with --db-server.
+option_db_server='mariadb:11.4'
 
 setup_file() {
 
@@ -14,7 +18,7 @@ setup_file() {
 
 	cat > "$fixtures/blueprint.json" <<- 'EOT'
 	{
-		"site": {"title": "Blueprint Site"},
+		"site": {"title": "Blueprint Site", "db_server": "mariadb:11.8"},
 		"themes": [{"source": "./mkwp-zip-theme.zip", "activate": true}],
 		"plugins": [{"source": "./mkwp-zip-plugin.zip", "activate": true}]
 	}
@@ -22,6 +26,7 @@ setup_file() {
 
 	make_site blueprint-options -B "$fixtures/blueprint.json" \
 		-t 'Title From The Command Line' \
+		--db-server="$option_db_server" \
 		-T "file://$fixtures/mkwp-option-theme.git" \
 		-P "../${fixtures#"$run_dir/"}/mkwp-option-plugin.zip"
 
@@ -29,6 +34,10 @@ setup_file() {
 
 test_has_the_title_from_the_command_line() {
 	assert_equal 'Title From The Command Line' "$(site_wp blueprint-options option get blogname)"
+}
+
+test_has_the_database_server_from_the_command_line() {
+	assert_equal "$option_db_server" "$(site_db_server blueprint-options)"
 }
 
 test_activates_the_last_theme_given_with_the_option_instead_of_the_marked_one() {
